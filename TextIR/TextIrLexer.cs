@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace OCRuntime.TextIR;
+namespace lattice.TextIR;
 
 internal enum TextIrTokenType
 {

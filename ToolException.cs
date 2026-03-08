@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace OCRuntime
+namespace lattice
 {
     /// <summary>
     /// Custom exception for tool-related errors.

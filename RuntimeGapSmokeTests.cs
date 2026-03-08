@@ -1,9 +1,9 @@
 ﻿using System;
 
-namespace OCRuntime;
+namespace lattice;
 
 /// <summary>
-/// Minimal smoke tests for OCRuntime features claimed in docs.
+/// Minimal smoke tests for lattice features claimed in docs.
 /// Not a full unit test suite; this is meant to be runnable via Program/Main.
 /// </summary>
 internal static class RuntimeGapSmokeTests

@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace OCRuntime.IR;
+namespace lattice.IR;
 
 public sealed class InstructionDto
 {

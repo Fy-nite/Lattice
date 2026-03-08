@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text.Json;
-using OCRuntime.IR;
-using OCRuntime.Runtime;
+using lattice.IR;
+using lattice.Runtime;
 
-namespace OCRuntime.TextIR;
+namespace lattice.TextIR;
 
 public static class AttributeFactory
 {

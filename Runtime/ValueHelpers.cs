@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace OCRuntime.Runtime;
+namespace lattice.Runtime;
 
 public static class ValueHelpers
 {

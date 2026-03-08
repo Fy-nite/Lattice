@@ -1,18 +1,15 @@
 {
   "version": 2,
-  "dgSpecHash": "D6mLKE6V4ZY=",
+  "dgSpecHash": "NQh29CahJ0I=",
   "success": true,
-  "projectFilePath": "D:\\git\\Lattice\\Lattice.csproj",
+  "projectFilePath": "D:\\git\\ObjectIR.net\\libs\\lattice\\Lattice.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\GAMER\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
     "C:\\Users\\GAMER\\.nuget\\packages\\json.more.net\\2.0.1.2\\json.more.net.2.0.1.2.nupkg.sha512",
     "C:\\Users\\GAMER\\.nuget\\packages\\jsonpointer.net\\5.0.0\\jsonpointer.net.5.0.0.nupkg.sha512",
     "C:\\Users\\GAMER\\.nuget\\packages\\jsonschema.net\\7.0.3\\jsonschema.net.7.0.3.nupkg.sha512",
-    "C:\\Users\\GAMER\\.nuget\\packages\\microsoft.net.illink.tasks\\10.0.2\\microsoft.net.illink.tasks.10.0.2.nupkg.sha512",
-    "C:\\Users\\GAMER\\.nuget\\packages\\mongodb.bson\\2.25.0\\mongodb.bson.2.25.0.nupkg.sha512",
-    "C:\\Users\\GAMER\\.nuget\\packages\\microsoft.netcore.app.runtime.linux-x64\\10.0.2\\microsoft.netcore.app.runtime.linux-x64.10.0.2.nupkg.sha512",
-    "C:\\Users\\GAMER\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.linux-x64\\10.0.2\\microsoft.aspnetcore.app.runtime.linux-x64.10.0.2.nupkg.sha512",
-    "C:\\Users\\GAMER\\.nuget\\packages\\microsoft.netcore.app.host.linux-x64\\10.0.2\\microsoft.netcore.app.host.linux-x64.10.0.2.nupkg.sha512"
+    "C:\\Users\\GAMER\\.nuget\\packages\\microsoft.net.illink.tasks\\10.0.3\\microsoft.net.illink.tasks.10.0.3.nupkg.sha512",
+    "C:\\Users\\GAMER\\.nuget\\packages\\mongodb.bson\\2.25.0\\mongodb.bson.2.25.0.nupkg.sha512"
   ],
   "logs": []
 }

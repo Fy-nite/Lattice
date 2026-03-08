@@ -1,4 +1,4 @@
-namespace OCRuntime.Runtime;
+namespace lattice.Runtime;
 
 public sealed class BreakSignal : Exception { }
 

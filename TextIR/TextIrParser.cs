@@ -1,9 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
-using OCRuntime.IR;
+using lattice.IR;
 
-namespace OCRuntime.TextIR;
+namespace lattice.TextIR;
 
 internal static class TextIrParser
 {

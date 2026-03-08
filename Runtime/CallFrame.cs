@@ -1,6 +1,6 @@
-using OCRuntime.IR;
+using lattice.IR;
 
-namespace OCRuntime.Runtime;
+namespace lattice.Runtime;
 
 public sealed class CallFrame
 {

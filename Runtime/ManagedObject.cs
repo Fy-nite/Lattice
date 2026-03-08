@@ -1,7 +1,7 @@
-using OCRuntime.IR;
-using OCRuntime.TextIR;
+using lattice.IR;
+using lattice.TextIR;
 
-namespace OCRuntime.Runtime;
+namespace lattice.Runtime;
 
 public sealed class ManagedObject
 {

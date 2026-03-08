@@ -4,7 +4,7 @@ using ObjectIR.Core.Composition;
 using ObjectIR.Core.IR;
 using ObjectIR.Core.Serialization;
 
-namespace OCRuntime
+namespace lattice
 {
     public class Program
     {

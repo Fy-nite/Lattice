@@ -1,10 +1,10 @@
 ﻿﻿using System.Reflection;
 using System.Text.Json;
-using OCRuntime.IR;
-using OCRuntime.Runtime;
-using OCRuntime.TextIR;
+using lattice.IR;
+using lattice.Runtime;
+using lattice.TextIR;
 
-namespace OCRuntime;
+namespace lattice;
 
 public sealed class IRRuntime
 {
@@ -39,59 +39,59 @@ public sealed class IRRuntime
     private readonly Dictionary<(string declaringType, string fieldName), object?> _staticFields = new();
     private Dictionary<string, TypeDto> _typeMap = new(StringComparer.Ordinal);
 
-    public IRRuntime(string input, InputFormat format = InputFormat.Auto, bool enableReflectionNativeMethods = false)
+    public IRRuntime(string input = null, InputFormat format = InputFormat.Auto, bool enableReflectionNativeMethods = false)
     {
         EnableReflectionNativeMethods = enableReflectionNativeMethods;
         if (input != null)
         {
 
-        _program = format switch
-        {
-            InputFormat.Json => DeserializeJsonModule(input),
-            InputFormat.TextIr => TextIrParser.ParseModule(input),
-            _ => AutoParse(input)
-        };
-        _typeMap = BuildTypeMap();
+            _program = format switch
+            {
+                InputFormat.Json => DeserializeJsonModule(input),
+                InputFormat.TextIr => TextIrParser.ParseModule(input),
+                _ => AutoParse(input)
+            };
+            _typeMap = BuildTypeMap();
         }
       
 
-        _nativeMethods["System.Console.WriteLine(string)"] = (instance, args) =>
-        {
-            Console.WriteLine(args.Length > 0 ? args[0] : null);
-            return null;
-        };
+            _nativeMethods["System.Console.WriteLine(string)"] = (instance, args) =>
+            {
+                Console.WriteLine(args.Length > 0 ? args[0] : null);
+                return null;
+            };
 
-        _nativeMethods["System.Console.Write(string)"] = (instance, args) =>
-        {
-            Console.Write(args.Length > 0 ? args[0] : null);
-            return null;
-        };
-        _nativeMethods["System.Console.WriteLine(int32)"] = (instance, args) =>
-        {
-            Console.WriteLine(args.Length > 0 ? args[0] : null);
-            return null;
-        };
-        _nativeMethods["System.Console.WriteLine(object)"] = (instance, args) =>
-        {
-            Console.WriteLine(args.Length > 0 ? args[0] : null);
-            return null;
-        };
-        _nativeMethods["System.Console.ReadLine()"] = (instance, args) => Console.ReadLine();
-        _nativeMethods["System.Console.Clear()"] = (instance, args) =>
-        {
-            Console.Clear();
-            return null;
-        };
-        _nativeMethods["System.Console.Beep()"] = (instance, args) =>
-        {
-            Console.Beep();
-            return null;
-        };
+            _nativeMethods["System.Console.Write(string)"] = (instance, args) =>
+            {
+                Console.Write(args.Length > 0 ? args[0] : null);
+                return null;
+            };
+            _nativeMethods["System.Console.WriteLine(int32)"] = (instance, args) =>
+            {
+                Console.WriteLine(args.Length > 0 ? args[0] : null);
+                return null;
+            };
+            _nativeMethods["System.Console.WriteLine(object)"] = (instance, args) =>
+            {
+                Console.WriteLine(args.Length > 0 ? args[0] : null);
+                return null;
+            };
+            _nativeMethods["System.Console.ReadLine()"] = (instance, args) => Console.ReadLine();
+            _nativeMethods["System.Console.Clear()"] = (instance, args) =>
+            {
+                Console.Clear();
+                return null;
+            };
+            _nativeMethods["System.Console.Beep()"] = (instance, args) =>
+            {
+                Console.Beep();
+                return null;
+            };
 
 
-        
-        _nativeMethods["System.Object.ToString()"] = (instance, args) => instance?.ToString();
-        _nativeMethods["System.Object.GetType()"] = (instance, args) => instance?.GetType();
+            
+            _nativeMethods["System.Object.ToString()"] = (instance, args) => instance?.ToString();
+            _nativeMethods["System.Object.GetType()"] = (instance, args) => instance?.GetType();
     }
     public void RegisterNativeMethod(string signature, NativeMethod method)
     {
