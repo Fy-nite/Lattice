@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Lattice")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+69ba0baffc4d98b0afde2359e01129876b271f9e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5625ff4809009695717d10cefd8fac3b2e02c248")]
 [assembly: System.Reflection.AssemblyProductAttribute("Lattice")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Lattice")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
