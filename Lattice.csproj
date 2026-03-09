@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="libs\ObjectIR.Core\ObjectIR.Core.csproj" />
+	  <ProjectReference Include="libs\ObjectIR.AST/ObjectIR.AST.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="libs\**\*.cs" />
