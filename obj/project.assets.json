@@ -273,11 +273,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\git\\Lattice\\Lattice.csproj",
+      "projectUniqueName": "D:\\git\\ObjectIR.net\\libs\\lattice\\Lattice.csproj",
       "projectName": "Lattice",
-      "projectPath": "D:\\git\\Lattice\\Lattice.csproj",
+      "projectPath": "D:\\git\\ObjectIR.net\\libs\\lattice\\Lattice.csproj",
       "packagesPath": "C:\\Users\\GAMER\\.nuget\\packages\\",
-      "outputPath": "D:\\git\\Lattice\\obj\\",
+      "outputPath": "D:\\git\\ObjectIR.net\\libs\\lattice\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Users\\GAMER\\AppData\\Roaming\\Godot\\mono\\GodotNuGetFallbackFolder",
@@ -302,11 +302,11 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "D:\\git\\Lattice\\libs\\ObjectIR.AST\\ObjectIR.AST.csproj": {
-              "projectPath": "D:\\git\\Lattice\\libs\\ObjectIR.AST\\ObjectIR.AST.csproj"
+            "D:\\git\\ObjectIR.net\\libs\\lattice\\libs\\ObjectIR.AST\\ObjectIR.AST.csproj": {
+              "projectPath": "D:\\git\\ObjectIR.net\\libs\\lattice\\libs\\ObjectIR.AST\\ObjectIR.AST.csproj"
             },
-            "D:\\git\\Lattice\\libs\\ObjectIR.Core\\ObjectIR.Core.csproj": {
-              "projectPath": "D:\\git\\Lattice\\libs\\ObjectIR.Core\\ObjectIR.Core.csproj"
+            "D:\\git\\ObjectIR.net\\libs\\lattice\\libs\\ObjectIR.Core\\ObjectIR.Core.csproj": {
+              "projectPath": "D:\\git\\ObjectIR.net\\libs\\lattice\\libs\\ObjectIR.Core\\ObjectIR.Core.csproj"
             }
           }
         }
