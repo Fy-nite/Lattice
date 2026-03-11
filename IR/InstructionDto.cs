@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace lattice.IR;
 
@@ -39,6 +40,8 @@ public sealed class ConditionDto
     public InstructionDto? expression { get; set; }
     public InstructionDto[]? block { get; set; }
 
+    /// <summary>Typed kind for runtime use. Excluded from JSON serialisation to avoid name collision with <c>kind</c>.</summary>
+    [JsonIgnore]
     public ConditionKind Kind => kind.ToLowerInvariant() switch
     {
         "stack" => ConditionKind.Stack,

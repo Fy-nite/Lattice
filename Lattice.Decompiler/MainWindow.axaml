@@ -1,0 +1,129 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Lattice.Decompiler.ViewModels"
+        x:Class="Lattice.Decompiler.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{Binding Title}"
+        Width="1200" Height="750"
+        MinWidth="800" MinHeight="500">
+
+  <Window.DataContext>
+    <vm:MainViewModel/>
+  </Window.DataContext>
+
+  <Window.Resources>
+    <SolidColorBrush x:Key="BgMain">#1E1E1E</SolidColorBrush>
+    <SolidColorBrush x:Key="BgSide">#252526</SolidColorBrush>
+    <SolidColorBrush x:Key="BgToolbar">#2D2D30</SolidColorBrush>
+    <SolidColorBrush x:Key="BgSelected">#094771</SolidColorBrush>
+    <SolidColorBrush x:Key="FgDefault">#CCCCCC</SolidColorBrush>
+    <SolidColorBrush x:Key="FgSource">#D4D4D4</SolidColorBrush>
+    <SolidColorBrush x:Key="BorderColor">#3F3F46</SolidColorBrush>
+    <SolidColorBrush x:Key="StatusBg">#007ACC</SolidColorBrush>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="Button.tool">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="#DCDCDC"/>
+      <Setter Property="Padding" Value="10,6"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.tool:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#3E3E40"/>
+    </Style>
+    <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+      <Setter Property="Background" Value="#094771"/>
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Background="#1E1E1E" LastChildFill="True">
+
+    <!-- Toolbar -->
+    <StackPanel DockPanel.Dock="Top"
+                Background="#2D2D30"
+                Orientation="Horizontal"
+                Spacing="4"
+                Height="38">
+      <Button Classes="tool" Click="OnOpenClicked" ToolTip.Tip="Open IR module">
+        📂  Open…
+      </Button>
+      <Button Classes="tool" Click="OnReloadClicked" ToolTip.Tip="Reload current file">
+        🔄  Reload
+      </Button>
+      <Button Classes="tool" Click="OnCopySourceClicked" ToolTip.Tip="Copy decompiled source to clipboard">
+        📋  Copy source
+      </Button>
+    </StackPanel>
+
+    <!-- Status bar -->
+    <Border DockPanel.Dock="Bottom"
+            Background="#007ACC"
+            Padding="8,3">
+      <TextBlock Foreground="White"
+                 FontSize="12"
+                 VerticalAlignment="Center"
+                 Text="{Binding StatusText}"/>
+    </Border>
+
+    <!-- 3-column layout: tree | splitter | source -->
+    <Grid ColumnDefinitions="280,4,*">
+
+      <!-- Tree sidebar -->
+      <Border Grid.Column="0"
+              Background="#252526"
+              BorderBrush="#3F3F46"
+              BorderThickness="0,0,1,0">
+        <TreeView ItemsSource="{Binding RootNodes}"
+                  SelectedItem="{Binding SelectedNode, Mode=TwoWay}"
+                  Background="Transparent"
+                  Foreground="#CCCCCC"
+                  FontSize="13"
+                  FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                  Margin="0,4">
+          <TreeView.ItemTemplate>
+            <TreeDataTemplate ItemsSource="{Binding Children}">
+              <TextBlock Text="{Binding Label}" Padding="2,1"/>
+            </TreeDataTemplate>
+          </TreeView.ItemTemplate>
+        </TreeView>
+      </Border>
+
+      <!-- Resize splitter -->
+      <GridSplitter Grid.Column="1"
+                    Background="#3F3F46"
+                    ResizeDirection="Columns"/>
+
+      <!-- Source panel -->
+      <Border Grid.Column="2" Background="#1E1E1E">
+        <Panel>
+          <TextBlock IsVisible="{Binding !HasSource}"
+                     Text="Open an IR module to begin."
+                     Foreground="#555555"
+                     FontSize="15"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"/>
+
+          <ScrollViewer IsVisible="{Binding HasSource}"
+                        HorizontalScrollBarVisibility="Auto"
+                        VerticalScrollBarVisibility="Auto">
+            <TextBox x:Name="SourceBox"
+                     Text="{Binding SourceText}"
+                     Background="Transparent"
+                     Foreground="#D4D4D4"
+                     CaretBrush="#AEAFAD"
+                     FontFamily="Cascadia Code,Consolas,Menlo,monospace"
+                     FontSize="13"
+                     BorderThickness="0"
+                     Padding="16"
+                     IsReadOnly="True"
+                     AcceptsReturn="True"
+                     TextWrapping="NoWrap"/>
+          </ScrollViewer>
+        </Panel>
+      </Border>
+    </Grid>
+  </DockPanel>
+</Window>

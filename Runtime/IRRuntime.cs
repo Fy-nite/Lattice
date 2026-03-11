@@ -1,9 +1,11 @@
-﻿﻿using System.Reflection;
+﻿﻿using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using lattice.IR;
 using lattice.Runtime;
 using lattice.TextIR;
 using ObjectIR.AST;
+using ObjectIR.FobCompiler;
 
 using AstParser = ObjectIR.AST.TextIrParser;
 using LatticeParser = lattice.TextIR.TextIrParser;
@@ -27,7 +29,10 @@ public sealed class IRRuntime
         Auto,
         Json,
         TextIr,
-        Ast
+        Ast,
+        /// <summary>FOB/IR binary format. When passed to <see cref="LoadModule(string,InputFormat)"/>
+        /// the string is treated as a file path whose bytes are read and decoded.</summary>
+        FobIr
     }
 
     private ModuleDto _program;
@@ -44,21 +49,30 @@ public sealed class IRRuntime
     private readonly Dictionary<(string declaringType, string fieldName), object?> _staticFields = new();
     private Dictionary<string, TypeDto> _typeMap = new(StringComparer.Ordinal);
     private object? _lastReturnValue;
+    // Registry for mapping IR type names to CLR `Type`s so host code can register
+    // native C# classes for use by the VM.
+    private static readonly Dictionary<string, Type> s_registeredClrTypes = new(StringComparer.Ordinal);
 
     public IRRuntime(string input = null, InputFormat format = InputFormat.Auto, bool enableReflectionNativeMethods = false)
     {
         EnableReflectionNativeMethods = enableReflectionNativeMethods;
         if (input != null)
         {
-
-            _program = format switch
+            if (format == InputFormat.FobIr)
             {
-                InputFormat.Json => DeserializeJsonModule(input),
-                InputFormat.TextIr => LatticeParser.ParseModule(input),
-                InputFormat.Ast => AstLowering.Lower(AstParser.ParseModule(input)),
-                _ => AutoParse(input)
-            };
-            _typeMap = BuildTypeMap();
+                LoadFobFile(input);
+            }
+            else
+            {
+                _program = format switch
+                {
+                    InputFormat.Json   => DeserializeJsonModule(input),
+                    InputFormat.TextIr => LatticeParser.ParseModule(input),
+                    InputFormat.Ast    => AstLowering.Lower(AstParser.ParseModule(input)),
+                    _                  => AutoParse(input)
+                };
+                _typeMap = BuildTypeMap();
+            }
         }
       
 
@@ -95,8 +109,34 @@ public sealed class IRRuntime
                 return null;
             };
 
+            // Multi-arg WriteLine variants: concatenate all args and print as one line.
+            _nativeMethods["System.Console.WriteLine(string,string)"] = (instance, args) =>
+            {
+                Console.WriteLine(string.Concat(args.Select(a => a?.ToString() ?? "")));
+                return null;
+            };
+            _nativeMethods["System.Console.WriteLine(string,object)"] = (instance, args) =>
+            {
+                var fmt = args.Length > 0 ? args[0]?.ToString() ?? "" : "";
+                var arg0 = args.Length > 1 ? args[1] : null;
+                Console.WriteLine(fmt, arg0);
+                return null;
+            };
+            _nativeMethods["System.Console.Write(string,string)"] = (instance, args) =>
+            {
+                Console.Write(string.Concat(args.Select(a => a?.ToString() ?? "")));
+                return null;
+            };
+            // String methods
+            _nativeMethods["System.String.Concat(string,string)"] = (instance, args) =>
+                string.Concat(args[0]?.ToString() ?? "", args[1]?.ToString() ?? "");
+            _nativeMethods["System.String.Format(string,object)"] = (instance, args) =>
+                string.Format(args[0]?.ToString() ?? "", args[1]);
+            _nativeMethods["System.String.Format(string,object,object)"] = (instance, args) =>
+                string.Format(args[0]?.ToString() ?? "", args[1], args[2]);
+            _nativeMethods["System.String.IsNullOrEmpty(string)"] = (instance, args) =>
+                string.IsNullOrEmpty(args[0]?.ToString());
 
-            
             _nativeMethods["System.Object.ToString()"] = (instance, args) => instance?.ToString();
             _nativeMethods["System.Object.GetType()"] = (instance, args) => instance?.GetType();
     }
@@ -112,17 +152,38 @@ public sealed class IRRuntime
         }
     }
 
+    // Allow host code to register CLR types for IR interop. The `irTypeName`
+    // should match how the type is referenced in the IR (e.g. "MyNs.MyType").
+    public static void RegisterClrType(string irTypeName, Type clrType)
+    {
+        if (string.IsNullOrWhiteSpace(irTypeName)) throw new ArgumentException("irTypeName required", nameof(irTypeName));
+        if (clrType == null) throw new ArgumentNullException(nameof(clrType));
+        s_registeredClrTypes[irTypeName] = clrType;
+    }
+
+    public static void RegisterClrType<T>(string? irTypeName = null)
+    {
+        var name = irTypeName ?? typeof(T).FullName ?? typeof(T).Name;
+        s_registeredClrTypes[name] = typeof(T);
+    }
+
     /// <summary>
     /// Load (or replace) the IR module from a TextIR or JSON string.
     /// </summary>
     public void LoadModule(string input, InputFormat format = InputFormat.Auto)
     {
+        if (format == InputFormat.FobIr)
+        {
+            // Treat input as a file path and load the binary.
+            LoadFobFile(input);
+            return;
+        }
         _program = format switch
         {
-            InputFormat.Json => DeserializeJsonModule(input),
+            InputFormat.Json   => DeserializeJsonModule(input),
             InputFormat.TextIr => LatticeParser.ParseModule(input),
-            InputFormat.Ast => AstLowering.Lower(AstParser.ParseModule(input)),
-            _ => AutoParse(input)
+            InputFormat.Ast    => AstLowering.Lower(AstParser.ParseModule(input)),
+            _                  => AutoParse(input)
         };
         _typeMap = BuildTypeMap();
     }
@@ -135,6 +196,24 @@ public sealed class IRRuntime
         _program = AstLowering.Lower(astModule);
         _typeMap = BuildTypeMap();
     }
+
+    /// <summary>
+    /// Load (or replace) the IR module from raw FOB/IR v3 binary bytes.
+    /// The payload is deserialised via <see cref="ModuleBinaryReader.Read"/> —
+    /// no JSON parsing or AST lowering is performed.
+    /// </summary>
+    public void LoadModule(byte[] fobBytes)
+    {
+        var binary = FobIrReader.ReadFromBytes(fobBytes);
+        _program = ModuleBinaryReader.Read(binary.Payload);
+        _typeMap = BuildTypeMap();
+    }
+
+    /// <summary>
+    /// Load (or replace) the IR module from a FOB/IR binary file on disk.
+    /// </summary>
+    public void LoadFobFile(string path)
+        => LoadModule(File.ReadAllBytes(path));
 
     /// <summary>
     /// Call a method by "TypeName.MethodName" (or just "MethodName" to search all types)
@@ -412,9 +491,29 @@ public sealed class IRRuntime
                 {
                     var typeName = GetString(instr.operand, "type")
                                    ?? throw new InvalidOperationException("newobj missing operand.type");
+                    // If a CLR type has been registered for this IR type, construct
+                    // a CLR instance and attach it to the ManagedObject as metadata
+                    // so later reflected calls/field access can operate on it.
+                    object? clrInstance = null;
+                    if (s_registeredClrTypes.TryGetValue(typeName, out var regType))
+                    {
+                        try
+                        {
+                            clrInstance = Activator.CreateInstance(regType);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new InvalidOperationException($"Failed to create CLR instance of '{regType.FullName}': {ex.Message}", ex);
+                        }
+                    }
+
                     var obj = new ManagedObject(typeName);
-                    
-                    // Attach attributes
+                    if (clrInstance != null)
+                    {
+                        obj.SetMetadata("clrInstance", clrInstance);
+                    }
+
+                    // Attach attributes from IR type if present
                     if (_typeMap.TryGetValue(typeName, out var typeDto))
                     {
                         obj.AttachAttributesFromIR(typeDto, _typeMap, ResolveStaticField);
@@ -470,6 +569,27 @@ public sealed class IRRuntime
                     if (instance == null)
                         throw new InvalidOperationException("ldfld requires an object instance (stack or this)");
 
+                    // If this ManagedObject wraps a CLR instance, reflectively get the
+                    // property/field value from the CLR object.
+                    var clr = instance.GetMetadata("clrInstance");
+                    if (clr != null)
+                    {
+                        var clrType = clr.GetType();
+                        var prop = clrType.GetProperty(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                        if (prop != null)
+                        {
+                            frame.EvalStack.Push(prop.GetValue(clr));
+                            return;
+                        }
+                        var field = clrType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                        if (field != null)
+                        {
+                            frame.EvalStack.Push(field.GetValue(clr));
+                            return;
+                        }
+                        // Fallback to VM fields
+                    }
+
                     frame.EvalStack.Push(instance.GetField(fieldName));
                     return;
                 }
@@ -489,6 +609,25 @@ public sealed class IRRuntime
                     if (instance == null)
                         throw new InvalidOperationException("stfld requires an object instance (stack or this)");
 
+                    var clr = instance.GetMetadata("clrInstance");
+                    if (clr != null)
+                    {
+                        var clrType = clr.GetType();
+                        var prop = clrType.GetProperty(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                        if (prop != null)
+                        {
+                            prop.SetValue(clr, ValueHelpers.ConvertTo(prop.PropertyType, value));
+                            return;
+                        }
+                        var field = clrType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                        if (field != null)
+                        {
+                            field.SetValue(clr, ValueHelpers.ConvertTo(field.FieldType, value));
+                            return;
+                        }
+                        // Fallback to VM fields
+                    }
+
                     instance.SetField(fieldName, value);
                     return;
                 }
@@ -496,6 +635,24 @@ public sealed class IRRuntime
                 case "ldsfld":
                 {
                     var key = GetStaticFieldKey(instr.operand);
+                    // If a CLR type is registered for the declaring type, try to reflectively
+                    // read a static field/property first.
+                    if (s_registeredClrTypes.TryGetValue(key.declaringType, out var clrType))
+                    {
+                        var prop = clrType.GetProperty(key.fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                        if (prop != null)
+                        {
+                            frame.EvalStack.Push(prop.GetValue(null));
+                            return;
+                        }
+                        var field = clrType.GetField(key.fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                        if (field != null)
+                        {
+                            frame.EvalStack.Push(field.GetValue(null));
+                            return;
+                        }
+                    }
+
                     _staticFields.TryGetValue(key, out var value);
                     frame.EvalStack.Push(value);
                     return;
@@ -504,7 +661,26 @@ public sealed class IRRuntime
                 case "stsfld":
                 {
                     var key = GetStaticFieldKey(instr.operand);
-                    _staticFields[key] = frame.EvalStack.Pop();
+                    // If a CLR type is registered for the declaring type, try to reflectively
+                    // set a static field/property first.
+                    var val = frame.EvalStack.Pop();
+                    if (s_registeredClrTypes.TryGetValue(key.declaringType, out var clrType))
+                    {
+                        var prop = clrType.GetProperty(key.fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                        if (prop != null)
+                        {
+                            prop.SetValue(null, ValueHelpers.ConvertTo(prop.PropertyType, val));
+                            return;
+                        }
+                        var field = clrType.GetField(key.fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                        if (field != null)
+                        {
+                            field.SetValue(null, ValueHelpers.ConvertTo(field.FieldType, val));
+                            return;
+                        }
+                    }
+
+                    _staticFields[key] = val;
                     return;
                 }
 
@@ -735,7 +911,23 @@ public sealed class IRRuntime
                 throw new InvalidOperationException("callvirt requires an object instance on the stack");
         }
 
-        if (_nativeMethods.TryGetValue(signature, out var native))
+        // Try exact signature first, then a simplified (short-name, lower-case) form
+        // so registered natives like "System.Console.WriteLine(string)" will
+        // match calls that encode parameter types as "System.String".
+        if (!_nativeMethods.TryGetValue(signature, out var native))
+        {
+            var simplifiedParams = target.parameterTypes.Select(pt =>
+            {
+                if (string.IsNullOrWhiteSpace(pt)) return pt;
+                var lastDot = pt.LastIndexOf('.');
+                var shortName = lastDot >= 0 ? pt[(lastDot + 1)..] : pt;
+                return shortName.ToLowerInvariant();
+            });
+            var altSignature = $"{target.declaringType}.{target.name}({string.Join(",", simplifiedParams)})";
+            _nativeMethods.TryGetValue(altSignature, out native);
+        }
+
+        if (native != null)
         {
             var result = native(instance, args);
             // If the result is a ManagedObject with type name ending in Exception, treat as VM exception
@@ -750,7 +942,19 @@ public sealed class IRRuntime
             return;
         }
 
-        if (EnableReflectionNativeMethods && TryInvokeReflectedNative(target, args, instance, out var reflectedResult))
+        // If the instance is a VM `ManagedObject` that wraps a CLR instance, extract
+        // the CLR object so reflected invocation receives the real instance.
+        object? reflectedInstance = null;
+        if (instance is ManagedObject moInstance)
+        {
+            reflectedInstance = moInstance.GetMetadata("clrInstance");
+        }
+        else
+        {
+            reflectedInstance = instance;
+        }
+
+        if (EnableReflectionNativeMethods && TryInvokeReflectedNative(target, args, reflectedInstance, out var reflectedResult))
         {
             if (!IsVoid(target.returnType))
             {
@@ -782,7 +986,10 @@ public sealed class IRRuntime
         if (clrType == null)
             return false;
 
-        var paramClrTypes = target.parameterTypes.Select(MapTypeNameToClrType).ToArray();
+        // Resolve parameter CLR types using the full resolver so both short names
+        // (e.g. "int32" or "string") and fully-qualified names (e.g. "System.String")
+        // work when invoking reflected natives.
+        var paramClrTypes = target.parameterTypes.Select(pt => ResolveClrType(pt)).ToArray();
         if (paramClrTypes.Any(t => t == null))
             return false;
 
@@ -811,11 +1018,24 @@ public sealed class IRRuntime
 
     private static Type? ResolveClrType(string typeName)
     {
+        // First check explicit registrations
+        if (s_registeredClrTypes.TryGetValue(typeName, out var reg))
+            return reg;
+
         var t = Type.GetType(typeName, throwOnError: false, ignoreCase: false);
         if (t != null) return t;
 
         t = MapTypeNameToClrType(typeName);
         if (t != null) return t;
+
+        // Try registered short-names (e.g. when IR uses just the simple type name)
+        var lastDot = typeName.LastIndexOf('.');
+        if (lastDot >= 0)
+        {
+            var shortName = typeName[(lastDot + 1)..];
+            if (s_registeredClrTypes.TryGetValue(shortName, out var regShort))
+                return regShort;
+        }
 
         foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
         {
@@ -831,20 +1051,28 @@ public sealed class IRRuntime
         var n = typeName.Trim().ToLowerInvariant();
         return n switch
         {
-            "void" or "system.void" => typeof(void),
-            "bool" or "system.boolean" => typeof(bool),
-            "int8" or "system.sbyte" => typeof(sbyte),
-            "uint8" or "system.byte" => typeof(byte),
-            "int16" or "system.int16" => typeof(short),
-            "uint16" or "system.uint16" => typeof(ushort),
-            "int32" or "system.int32" => typeof(int),
-            "uint32" or "system.uint32" => typeof(uint),
-            "int64" or "system.int64" => typeof(long),
-            "uint64" or "system.uint64" => typeof(ulong),
-            "float32" or "single" or "system.single" => typeof(float),
-            "float64" or "double" or "system.double" => typeof(double),
-            "char" or "system.char" => typeof(char),
-            "string" or "system.string" => typeof(string),
+            "void" or "system.void" or "System.Void" => typeof(void),
+            "bool" or "system.boolean" or "System.Boolean" => typeof(bool),
+            "int8" or "system.sbyte" or "System.SByte" => typeof(sbyte),
+            "uint8" or "system.byte" or "System.Byte" => typeof(byte),
+            "int16" or "system.int16" or "System.Int16" => typeof(short),
+            "uint16" or "system.uint16" or "System.UInt16" => typeof(ushort),
+            "int32" or "system.int32" or "System.Int32" => typeof(int),
+            "uint32" or "system.uint32" or "System.UInt32" => typeof(uint),
+            "int64" or "system.int64" or "System.Int64" => typeof(long),
+            "uint64" or "system.uint64" or "System.UInt64" => typeof(ulong),
+            "float32" or "single" or "system.single" or "System.Single" => typeof(float),
+            "float64" or "double" or "system.double" or "System.Double" => typeof(double),
+            "char" or "system.char" or "System.Char" => typeof(char),
+            "string" or "system.string" or "System.String" => typeof(string),
+            "object" or "system.object" or "System.Object" => typeof(object),
+            "decimal" or "system.decimal" or "System.Decimal" => typeof(decimal),
+            "datetime" or "system.datetime" or "System.DateTime" => typeof(DateTime),
+            "timespan" or "system.timespan" or "System.TimeSpan" => typeof(TimeSpan),
+            "guid" or "system.guid" or "System.Guid" => typeof(Guid),
+            // Common framework types that may not be discoverable via Type.GetType
+            // in trimmed or partial frameworks.
+            "system.console" or "System.Console" => typeof(Console),
             _ => null
         };
     }
@@ -897,8 +1125,12 @@ public sealed class IRRuntime
 
     private static bool ExecuteComparison(string op, object? a, object? b)
     {
-        if (a is string sa && b is string sb)
+        // Promote to string comparison if either operand is a string (or null vs string).
+        // Without this, ToDouble("exit") would throw a FormatException.
+        if (a is string || b is string)
         {
+            var sa = a?.ToString() ?? "";
+            var sb = b?.ToString() ?? "";
             return op switch
             {
                 "ceq" => string.Equals(sa, sb, StringComparison.Ordinal),
@@ -948,7 +1180,8 @@ public sealed class IRRuntime
         switch (condition.Kind)
         {
             case ConditionKind.Stack:
-                return ValueHelpers.ToBool(frame.EvalStack.Pop());
+                // Guard against an empty stack: treat as false so loops exit cleanly.
+                return frame.EvalStack.Count > 0 && ValueHelpers.ToBool(frame.EvalStack.Pop());
 
             case ConditionKind.Binary:
             {
@@ -1102,6 +1335,33 @@ public sealed class IRRuntime
     }
 
     public IReadOnlyList<CallFrame> CallStack => _callStack.Reverse().ToList();
+
+    /// <summary>
+    /// All static field values stored by the runtime, keyed by (declaringType, fieldName).
+    /// Values are typically <see cref="ManagedObject"/> instances or primitives.
+    /// </summary>
+    public IReadOnlyDictionary<(string declaringType, string fieldName), object?> StaticFields
+        => _staticFields;
+
+    /// <summary>
+    /// Read a single static field value stored by the runtime.
+    /// Returns <c>null</c> if the field has not been set.
+    /// </summary>
+    public object? GetStaticField(string declaringType, string fieldName)
+    {
+        _staticFields.TryGetValue((declaringType, fieldName), out var val);
+        return val;
+    }
+
+    /// <summary>
+    /// Convenience overload: pass the key as "DeclaringType.FieldName".
+    /// </summary>
+    public object? GetStaticField(string qualifiedName)
+    {
+        var dot = qualifiedName.LastIndexOf('.');
+        if (dot < 0) throw new ArgumentException("Expected 'TypeName.FieldName'", nameof(qualifiedName));
+        return GetStaticField(qualifiedName[..dot], qualifiedName[(dot + 1)..]);
+    }
 }
 
 

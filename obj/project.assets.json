@@ -61,7 +61,7 @@
           }
         }
       },
-      "Microsoft.NET.ILLink.Tasks/10.0.3": {
+      "Microsoft.NET.ILLink.Tasks/10.0.1": {
         "type": "package",
         "build": {
           "build/Microsoft.NET.ILLink.Tasks.props": {}
@@ -78,6 +78,19 @@
           "lib/netstandard2.1/MongoDB.Bson.dll": {
             "related": ".xml"
           }
+        }
+      },
+      "FobGenerator/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "dependencies": {
+          "ObjectIR.AST": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/FobGenerator.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/FobGenerator.dll": {}
         }
       },
       "ObjectIR.AST/1.0.0": {
@@ -178,10 +191,10 @@
         "lib/netstandard2.0/JsonSchema.Net.xml"
       ]
     },
-    "Microsoft.NET.ILLink.Tasks/10.0.3": {
-      "sha512": "0B6nZyCHWXnvmlB559oduOspVdNOnpNXPjhpWVMovLPAsDVG7A4jJR9rzECf67JUzxP8/ee/wA8clwIzJcWNFA==",
+    "Microsoft.NET.ILLink.Tasks/10.0.1": {
+      "sha512": "ISahzLHsHY7vrwqr2p1YWZ+gsxoBRtH7gWRDK8fDUst9pp2He0GiesaqEfeX0V8QMCJM3eNEHGGpnIcPjFo2NQ==",
       "type": "package",
-      "path": "microsoft.net.illink.tasks/10.0.3",
+      "path": "microsoft.net.illink.tasks/10.0.1",
       "hasTools": true,
       "files": [
         ".nupkg.metadata",
@@ -194,7 +207,7 @@
         "build/Microsoft.NET.ILLink.Analyzers.props",
         "build/Microsoft.NET.ILLink.Tasks.props",
         "build/Microsoft.NET.ILLink.targets",
-        "microsoft.net.illink.tasks.10.0.3.nupkg.sha512",
+        "microsoft.net.illink.tasks.10.0.1.nupkg.sha512",
         "microsoft.net.illink.tasks.nuspec",
         "tools/net/ILLink.Tasks.deps.json",
         "tools/net/ILLink.Tasks.dll",
@@ -247,6 +260,11 @@
         "packageIcon.png"
       ]
     },
+    "FobGenerator/1.0.0": {
+      "type": "project",
+      "path": "libs/ObjectIR.FobCompiler/FobGenerator.csproj",
+      "msbuildProject": "libs/ObjectIR.FobCompiler/FobGenerator.csproj"
+    },
     "ObjectIR.AST/1.0.0": {
       "type": "project",
       "path": "libs/ObjectIR.AST/ObjectIR.AST.csproj",
@@ -260,53 +278,45 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
-      "Microsoft.NET.ILLink.Tasks >= 10.0.3",
+      "FobGenerator >= 1.0.0",
+      "Microsoft.NET.ILLink.Tasks >= 10.0.1",
       "ObjectIR.AST >= 1.0.0",
       "ObjectIR.Core >= 0.1.0"
     ]
   },
   "packageFolders": {
-    "C:\\Users\\GAMER\\.nuget\\packages\\": {},
-    "C:\\Users\\GAMER\\AppData\\Roaming\\Godot\\mono\\GodotNuGetFallbackFolder": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "/Users/charlie/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\git\\ObjectIR.net\\libs\\lattice\\Lattice.csproj",
+      "projectUniqueName": "/Users/charlie/Documents/GitHub/lattice/Lattice.csproj",
       "projectName": "Lattice",
-      "projectPath": "D:\\git\\ObjectIR.net\\libs\\lattice\\Lattice.csproj",
-      "packagesPath": "C:\\Users\\GAMER\\.nuget\\packages\\",
-      "outputPath": "D:\\git\\ObjectIR.net\\libs\\lattice\\obj\\",
+      "projectPath": "/Users/charlie/Documents/GitHub/lattice/Lattice.csproj",
+      "packagesPath": "/Users/charlie/.nuget/packages/",
+      "outputPath": "/Users/charlie/Documents/GitHub/lattice/obj/",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Users\\GAMER\\AppData\\Roaming\\Godot\\mono\\GodotNuGetFallbackFolder",
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\GAMER\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Users\\GAMER\\AppData\\Roaming\\NuGet\\config\\Godot.Offline.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        "/Users/charlie/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-        "C:\\Program Files\\dotnet\\library-packs": {},
-        "C:\\Users\\GAMER\\AppData\\Roaming\\Cosmos User Kit\\packages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "D:\\git\\ObjectIR.net\\libs\\lattice\\libs\\ObjectIR.AST\\ObjectIR.AST.csproj": {
-              "projectPath": "D:\\git\\ObjectIR.net\\libs\\lattice\\libs\\ObjectIR.AST\\ObjectIR.AST.csproj"
+            "/Users/charlie/Documents/GitHub/lattice/libs/ObjectIR.AST/ObjectIR.AST.csproj": {
+              "projectPath": "/Users/charlie/Documents/GitHub/lattice/libs/ObjectIR.AST/ObjectIR.AST.csproj"
             },
-            "D:\\git\\ObjectIR.net\\libs\\lattice\\libs\\ObjectIR.Core\\ObjectIR.Core.csproj": {
-              "projectPath": "D:\\git\\ObjectIR.net\\libs\\lattice\\libs\\ObjectIR.Core\\ObjectIR.Core.csproj"
+            "/Users/charlie/Documents/GitHub/lattice/libs/ObjectIR.Core/ObjectIR.Core.csproj": {
+              "projectPath": "/Users/charlie/Documents/GitHub/lattice/libs/ObjectIR.Core/ObjectIR.Core.csproj"
+            },
+            "/Users/charlie/Documents/GitHub/lattice/libs/ObjectIR.FobCompiler/FobGenerator.csproj": {
+              "projectPath": "/Users/charlie/Documents/GitHub/lattice/libs/ObjectIR.FobCompiler/FobGenerator.csproj"
             }
           }
         }
@@ -330,7 +340,7 @@
           "Microsoft.NET.ILLink.Tasks": {
             "suppressParent": "All",
             "target": "Package",
-            "version": "[10.0.3, )",
+            "version": "[10.0.1, )",
             "autoReferenced": true
           }
         },
@@ -350,7 +360,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.101/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",
