@@ -4,3 +4,6 @@
 [submodule "libs/ObjectIR.AST"]
 	path = libs/ObjectIR.AST
 	url = https://github.com/fy-nite/ObjectIR.AST
+[submodule "libs/ObjectIR.FobCompiler"]
+	path = libs/ObjectIR.FobCompiler
+	url = https://github.com/fy-nite/ObjectIR.FobCompiler
