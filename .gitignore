@@ -12,7 +12,8 @@
 *.user
 *.userosscache
 *.sln.docstates
-obj/*
+obj/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
@@ -480,16 +481,8 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
 IRRuntime_Features.aux
 IRRuntime_Features.out
 IRRuntime_Features.pdf
 IRRuntime_Features.toc
-obj/Lattice.csproj.nuget.dgspec.json
-obj/Lattice.csproj.nuget.g.props
-obj/project.assets.json
-obj/project.nuget.cache
-obj/Debug/net10.0/Lattice.AssemblyInfo.cs
-obj/Debug/net10.0/Lattice.AssemblyInfoInputs.cache
-obj/Debug/net10.0/Lattice.assets.cache
-obj/Debug/net10.0/Lattice.csproj.AssemblyReference.cache
-obj/Debug/net10.0/Lattice.GeneratedMSBuildEditorConfig.editorconfig
