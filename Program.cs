@@ -8,6 +8,13 @@ using ObjectIR.Core.Composition;
 using ObjectIR.Core.IR;
 using ObjectIR.Core.Serialization;
 using ObjectIR.FobCompiler;
+using System;
+using System.IO;
+
+namespace System.Runtime.CompilerServices
+{
+    public class IsExternalInit { }
+}
 
 namespace lattice
 {

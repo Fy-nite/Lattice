@@ -2,9 +2,10 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <TargetFramework>netstandard2.1</TargetFramework>
+	  <LangVersion>Latest</LangVersion>
+    <!--<ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>-->
     <AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
     <PublishSingleFile>true</PublishSingleFile>
     <!-- setup for dotnet tool instaliation -->
@@ -16,9 +17,13 @@
     <ProjectReference Include="libs\ObjectIR.Core\ObjectIR.Core.csproj" />
   </ItemGroup>
  <ItemGroup>
-    <Compile Remove="libs\**\*.cs" />
+    <Compile Remove="Lattice.Decompiler\**" />
     <Compile Remove="Lattice.Tests\**\*.cs" />
-    <Compile Remove="Lattice.Decompiler\**\*.cs" />
+    <Compile Remove="libs\**" />
+    <EmbeddedResource Remove="Lattice.Decompiler\**" />
+    <EmbeddedResource Remove="libs\**" />
+    <None Remove="Lattice.Decompiler\**" />
+    <None Remove="libs\**" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
