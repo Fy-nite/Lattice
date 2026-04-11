@@ -228,7 +228,7 @@ internal static class ModuleBinaryWriter
     {
         w.Write(st.Intern(m.name));
         w.Write(st.Intern(m.version));
-        w.Write((ushort)m.types.Length);
+        w.Write((uint)m.types.Length);
         foreach (var t in m.types) WriteType(w, st, t);
     }
 
@@ -245,13 +245,13 @@ internal static class ModuleBinaryWriter
         if (t.isSealed)   flags |= 2;
         w.Write(flags);
 
-        w.Write((ushort)t.interfaces.Length);
+        w.Write((uint)t.interfaces.Length);
         foreach (var i in t.interfaces) w.Write(st.Intern(i));
 
-        w.Write((ushort)t.fields.Length);
+        w.Write((uint)t.fields.Length);
         foreach (var f in t.fields) WriteField(w, st, f);
 
-        w.Write((ushort)t.methods.Length);
+        w.Write((uint)t.methods.Length);
         foreach (var m in t.methods) WriteMethod(w, st, m);
     }
 
@@ -280,14 +280,14 @@ internal static class ModuleBinaryWriter
         if (m.isConstructor) flags |= 0x10;
         w.Write(flags);
 
-        w.Write((ushort)m.parameters.Length);
+        w.Write((uint)m.parameters.Length);
         foreach (var p in m.parameters)
         {
             w.Write(st.Intern(p.name));
             w.Write(st.Intern(p.type));
         }
 
-        w.Write((ushort)m.localVariables.Length);
+        w.Write((uint)m.localVariables.Length);
         foreach (var l in m.localVariables)
         {
             w.Write(st.Intern(l.name));
@@ -513,7 +513,7 @@ internal static class ModuleBinaryWriter
                             .Select(p => p.GetString() ?? "")
                             .ToArray();
         }
-        w.Write((ushort)paramTypes.Length);
+        w.Write((uint)paramTypes.Length);
         foreach (var pt in paramTypes) w.Write(st.Intern(pt));
     }
 
@@ -531,7 +531,8 @@ internal static class ModuleBinaryWriter
         {
             case "binary":
                 w.Write(BinOp.CondBinary);
-                w.Write(st.Intern(c.TryGetProperty("operation", out var op) ? op.GetString() : null));
+                var opStr = c.TryGetProperty("operation", out var op) ? op.GetString() : null;
+                w.Write(MapComparisonOp(opStr));
                 break;
 
             case "expression":
@@ -561,6 +562,21 @@ internal static class ModuleBinaryWriter
                 w.Write(BinOp.CondStack);
                 break;
         }
+    }
+
+    private static byte MapComparisonOp(string? op)
+    {
+        if (string.IsNullOrEmpty(op)) return 0;
+        return op.Trim().ToLowerInvariant() switch
+        {
+            "==" or "=" or "equal" or "===" => 0,
+            "!=" or "!=" or "notequal" or "not_equal" => 1,
+            ">" or "greater" => 2,
+            ">=" or "ge" or "greaterorequal" or ">=" => 3,
+            "<" or "less" => 4,
+            "<=" or "le" or "lessorequal" or "<=" => 5,
+            _ => 0,
+        };
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -626,15 +642,15 @@ internal static class ModuleBinaryWriter
 
     private sealed class StringTableBuilder
     {
-        private readonly Dictionary<string, ushort> _map  = new(StringComparer.Ordinal) { { "", 0 } };
-        private readonly List<string>               _list = [""];
+        private readonly Dictionary<string, uint> _map  = new(StringComparer.Ordinal) { { "", 0 } };
+        private readonly List<string>             _list = [""];
 
         /// <summary>Returns the interned index for <paramref name="s"/> (0 = empty/null).</summary>
-        public ushort Intern(string? s)
+        public uint Intern(string? s)
         {
             if (string.IsNullOrEmpty(s)) return 0;
             if (_map.TryGetValue(s, out var idx)) return idx;
-            var newIdx = checked((ushort)_list.Count);
+            var newIdx = (uint)_list.Count;
             _list.Add(s);
             _map[s] = newIdx;
             return newIdx;
@@ -647,7 +663,7 @@ internal static class ModuleBinaryWriter
             foreach (var s in _list)
             {
                 var bytes = Encoding.UTF8.GetBytes(s);
-                w.Write((ushort)bytes.Length);
+                w.Write((uint)bytes.Length);
                 w.Write(bytes);
             }
         }
