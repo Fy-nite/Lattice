@@ -1,4 +1,14 @@
 <Solution>
-    <Project Path="Lattice.csproj" />
-    <Project Path="libs/ObjectIR.Core/ObjectIR.Core.csproj"/>
+    <Folder Name="/Libs/">
+        <Project Path="libs/ObjectIR.Core/ObjectIR.Core.csproj" />
+    </Folder>
+    <Folder Name="/Libs/stdlib/">
+        <Project Path="Libs/ObjectIR.Stdlib/ObjectIR.StdLib.Core/ObjectIR.StdLib.Core.csproj" />
+        <Project Path="Libs/ObjectIR.Stdlib/ObjectIR.Stdlib/ObjectIR.Stdlib.csproj" />
+    </Folder>
+    <Folder Name="/Solution Items/">
+        <File Path=".editorconfig" />
+    </Folder>
+    <Project Path="lattice.core/lattice.core.vbproj" Id="7de3dd13-f329-4807-bda0-64d797d12f65" />
+    <Project Path="lattice/lattice.vbproj" Id="bba416f8-b543-4d5b-8581-e45adab2c91b" />
 </Solution>

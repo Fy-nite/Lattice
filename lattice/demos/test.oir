@@ -1,0 +1,9 @@
+module Test version 1.0.0
+class Program
+{
+	static method Main(args: System.String[]) -> void {
+        ldstr "Hello World!"
+        call System.Console.WriteLine(System.string) -> void
+        ret
+    }
+}
