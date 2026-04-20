@@ -80,9 +80,6 @@ public sealed class LocalVariableDto
 public sealed class AttributeDto
 {
     public string type { get; set; } = "";
-    // For simplicity, we'll store arguments as strings or basic types if possible, 
-    // but JSON deserialization of object[] can be tricky. 
-    // Let's use JsonElement[] for now or just ignore args in this pass if not strictly needed.
-    // But the user wants to "use Custom Attributes", so args might be important.
+
     public object[] constructorArguments { get; set; } = Array.Empty<object>();
 }
