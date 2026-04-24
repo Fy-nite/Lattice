@@ -1,9 +1,20 @@
 module Test version 1.0.0
 class Program
 {
-	static method Main(args: System.String[]) -> void {
-        ldstr "Hello World!"
+    constructor() -> void {
+        ret
+    }
+	static method Main() -> void {
+        ldstr "$>"
         call System.Console.WriteLine(System.string) -> void
+        ldstr "meow"
+        call System.Console.ReadLine() -> string
+        cne
+        if (stack)
+        {
+            ldstr "invalid command"
+            call System.Console.WriteLine(string) -> void
+        }
         ret
     }
 }

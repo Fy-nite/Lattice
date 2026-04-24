@@ -9,5 +9,6 @@ Public Module Program
         Console.WriteLine(thing)
         CPU = New CPU()
         CPU.LoadProgram("demos/test.oir")
+        CPU.Run()
     End Sub
 End Module
