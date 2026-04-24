@@ -8,8 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\lattice.core\lattice.core.vbproj" />
-    <ProjectReference Include="..\Libs\ObjectIR.Core\ObjectIR.Core.csproj" />
-    <ProjectReference Include="..\Libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj" />
+
   </ItemGroup>
 
   <ItemGroup>

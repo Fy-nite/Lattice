@@ -1,4 +1,28 @@
-﻿Namespace Core
+﻿Imports System.Text.Json
+
+Namespace Core
+
+    Public NotInheritable Class ModuleDTO
+        Public name As String
+        Public version As String
+        Public metadata As JsonElement
+        Public types As TypeDTO()
+        Public methods As MethodDTO()
+    End Class
+
+    Public NotInheritable Class TypeDTO
+        Public kind As String
+        Public name As String
+        Public _namespace As String
+        Public access As String
+        Public isAbstract As Boolean
+        Public isSealed As Boolean
+        Public baseType As String
+        Public attributes As List(Of AttributeDTO)
+        Public fields As List(Of FieldDTO)
+        Public methods As List(Of MethodDTO)
+        Public interfaces As List(Of String)
+    End Class
     Public NotInheritable Class MethodDTO
         Public name As String
         Public ReturnType As String

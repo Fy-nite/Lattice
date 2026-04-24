@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Libs\ObjectIR.Core\ObjectIR.Core.csproj" />
+    <ProjectReference Include="..\Libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj" />
     <ProjectReference Include="..\Libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj" />
   </ItemGroup>
 

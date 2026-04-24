@@ -1,8 +1,11 @@
 Imports System
-
-Module Program
-    Dim CPU As core.CPU = New core.CPU()
-    Sub Main(args As String())
-        CPU.LoadProgram("demos/test.oir")
-    End Sub
-End Module
+Imports lattice.core.Runtime
+Namespace lattice
+    Module Program
+        Dim CPU As CPU
+        Sub Main(args As String())
+            CPU = New CPU()
+            CPU.LoadProgram("demos/test.oir")
+        End Sub
+    End Module
+End Namespace
