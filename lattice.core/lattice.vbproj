@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	      <OutputType>Exe</OutputType>
+    <RootNamespace>lattice</RootNamespace>
+    <TargetFramework>net10.0</TargetFramework>
+	  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Drivers\" />
+  </ItemGroup>
+
+
+	<ItemGroup>
+
+    <ProjectReference Include="..\Libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj" />
+    <ProjectReference Include="..\Libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj" />
+		<ProjectReference Include="..\Libs\ObjectIR.Core\ObjectIR.Core.csproj">
+			<ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+			<Private>true</Private>
+		</ProjectReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="demos\test.oir">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

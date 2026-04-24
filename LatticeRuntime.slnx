@@ -9,6 +9,5 @@
     <Folder Name="/Solution Items/">
         <File Path=".editorconfig" />
     </Folder>
-    <Project Path="lattice.core/lattice.core.vbproj" Id="7de3dd13-f329-4807-bda0-64d797d12f65" />
-    <Project Path="lattice/lattice.vbproj" Id="bba416f8-b543-4d5b-8581-e45adab2c91b" />
+    <Project Path="lattice.core/lattice.vbproj" Id="7de3dd13-f329-4807-bda0-64d797d12f65" />
 </Solution>
