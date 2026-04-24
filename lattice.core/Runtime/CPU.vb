@@ -16,7 +16,7 @@ Namespace Runtime
             If modl Is Nothing Then
                 Throw New FileNotFoundException($"File not found: {path}, are you sure that the file exists?")
             End If
-            modl.Types.AddRange(New Connectors.StdlibConnector().GetStdlib())
+            'modl.Types.AddRange(New Connectors.StdlibConnector().GetStdlib())
             Program = modl
 
             RecursePrintTypes(modl.Types, 0)

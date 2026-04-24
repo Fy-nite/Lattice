@@ -1,8 +1,7 @@
 <Solution>
-    <Folder Name="/Libs/">
-        <Project Path="libs/ObjectIR.Core/ObjectIR.Core.csproj" />
-    </Folder>
+    <Folder Name="/Libs/" />
     <Folder Name="/Libs/stdlib/">
+        <Project Path="libs/ObjectIR.Stdlib/Libs/ObjectIR.Core/ObjectIR.Core.csproj" />
         <Project Path="Libs/ObjectIR.Stdlib/ObjectIR.StdLib.Core/ObjectIR.StdLib.Core.csproj" />
         <Project Path="Libs/ObjectIR.Stdlib/ObjectIR.Stdlib/ObjectIR.Stdlib.csproj" />
     </Folder>
