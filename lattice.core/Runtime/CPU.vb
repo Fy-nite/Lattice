@@ -1,5 +1,5 @@
 ﻿Imports System.IO
-Imports ObjectIR.AST
+Imports ObjectIR.Core.AST
 Imports lattice.Core.Debugging
 Namespace Runtime
     Public Class CPU
@@ -15,7 +15,8 @@ Namespace Runtime
             If modl Is Nothing Then
                 Throw New FileNotFoundException($"File not found: {path}, are you sure that the file exists?")
             End If
-            'modl.Types.AddRange(New Connectors.StdlibConnector().GetStdlib())
+            'modl.Classes.AddRange(New Connectors.StdlibConnector().GetStdlib())
+
             RecursePrintTypes(modl, 0)
 
         End Sub

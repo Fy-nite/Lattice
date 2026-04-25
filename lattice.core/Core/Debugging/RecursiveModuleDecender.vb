@@ -1,5 +1,5 @@
 ﻿Imports Humanizer
-Imports ObjectIR.AST
+Imports ObjectIR.Core.AST
 Namespace Core.Debugging
     Public Module RecursiveModuleDecender
 
