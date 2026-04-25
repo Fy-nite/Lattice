@@ -5,23 +5,40 @@ Imports ObjectIR.Stdlib.System
 Imports ObjectIR.Stdlib.Core.Core
 Namespace Connectors
     Public Class StdlibConnector
-        'Public Function GetStdlib() As List(Of NativeMethod)
-        '    Dim FL As List(Of NativeMethod) = New List(Of NativeMethod)()
+        'Return a list of IR type definitions (classes) that provide
+        'native implementations for standard library functions. These
+        'are attached to the MethodDefinition.NativeImpl property so the
+        'runtime can invoke managed implementations directly.
+        Public Function GetStdlib() As List(Of ObjectIR.Core.IR.TypeDefinition)
+            Dim types As New List(Of ObjectIR.Core.IR.TypeDefinition)()
 
-        '    Dim IO As ClassDefinition = New ClassDefinition("Stdlib.IO")
-        '    IO.Methods.Add(New MethodDefinition("Print", TypeReference.Void) With {
-        '                   .NativeImpl = New NativeMethod(Function(ByVal args As Value(Of Object)()) As Value(Of Object)
-        '                                                      ObjectIR.Stdlib.System.IO.Print(CType(args(0), Object), New Value(Of Object)(args.Skip(1).Select(Function(x) CType(x, Object)).ToArray()))
-        '                                                      Return New Value(Of Object)(Nothing)
-        '                                                  End Function
-        '                                           )})
-        '    IO.Methods.Add(New MethodDefinition("Println", TypeReference.Void) With {
-        '                   .NativeImpl = New NativeMethod(Function(ByVal args As Value(Of Object)()) As Value(Of Object)
-        '                                                      ObjectIR.Stdlib.System.IO.Println(CType(args(0), Object), New Value(Of Object)(args.Skip(1).Select(Function(x) CType(x, Object)).ToArray()))
-        '                                                      Return New Value(Of Object)(Nothing)
-        '                                                  End Function
-        '                                           )})
-        '    Return FL
-        'End Function
+            ' Stdlib.IO class
+            Dim ioClass As New ObjectIR.Core.IR.ClassDefinition("Stdlib.IO")
+
+            Dim print As ObjectIR.Core.IR.MethodDefinition = ioClass.DefineMethod("Print", ObjectIR.Core.IR.TypeReference.Void)
+            print.IsStatic = True
+            print.NativeImpl = New ObjectIR.Core.NativeMethod(Function(args As ObjectIR.Core.Value(Of Object)()) As ObjectIR.Core.Value(Of Object)
+                                                                   If args Is Nothing OrElse args.Length = 0 Then
+                                                                       Return New ObjectIR.Core.Value(Of Object)(Nothing)
+                                                                   End If
+                                                                   ' call the underlying stdlib implementation
+                                                                   ObjectIR.Stdlib.System.IO.Print(args(0))
+                                                                   Return New ObjectIR.Core.Value(Of Object)(Nothing)
+                                                               End Function)
+
+            Dim println As ObjectIR.Core.IR.MethodDefinition = ioClass.DefineMethod("Println", ObjectIR.Core.IR.TypeReference.Void)
+            println.IsStatic = True
+            println.NativeImpl = New ObjectIR.Core.NativeMethod(Function(args As ObjectIR.Core.Value(Of Object)()) As ObjectIR.Core.Value(Of Object)
+                                                                       If args Is Nothing OrElse args.Length = 0 Then
+                                                                           Return New ObjectIR.Core.Value(Of Object)(Nothing)
+                                                                       End If
+                                                                       ObjectIR.Stdlib.System.IO.Println(args(0))
+                                                                       Return New ObjectIR.Core.Value(Of Object)(Nothing)
+                                                                   End Function)
+
+            types.Add(ioClass)
+
+            Return types
+        End Function
     End Class
 End Namespace

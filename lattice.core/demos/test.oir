@@ -1,7 +1,7 @@
 module Test version 1.0.0
 class Program
 {
-    constructor() -> void {
+    method constructor() -> void {
         ret
     }
 	static method Main() -> void {
