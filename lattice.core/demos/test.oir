@@ -6,14 +6,14 @@ class Program
     }
 	static method Main() -> void {
         ldstr "$>"
-        call System.Console.WriteLine(System.string) -> void
+        call  IO.Println(System.string) -> void
         ldstr "meow"
-        call System.Console.ReadLine() -> string
+        call  IO.Readln() -> string
         cne
         if (stack)
         {
             ldstr "invalid command"
-            call System.Console.WriteLine(string) -> void
+            call IO.Println(System.string) -> void
         }
         ret
     }

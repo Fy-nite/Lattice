@@ -1,43 +1,55 @@
-﻿'Imports ObjectIR.Core.AST
-'Imports ObjectIR.Stdlib
-'Imports ObjectIR.Stdlib.System
-'Imports ObjectIR.Stdlib.Core.Core
-'Namespace Connectors
-'    Public Class StdlibConnector
-'        'Return a list of IR type definitions (classes) that provide
-'        'native implementations for standard library functions. These
-'        'are attached to the MethodDefinition.NativeImpl property so the
-'        'runtime can invoke managed implementations directly.
-'        Public Function GetStdlib() As List(Of TypeDefinition)
-'            Dim types As New List(Of TypeDefinition)()
+Imports System.Collections.Generic
+Imports ObjectIR.Core
+Imports ObjectIR.Core.AST
 
-'            ' Stdlib.IO class
-'            Dim ioClass As New 
+Namespace Connectors
+    Public Class StdlibConnector
+        'Return a list of AST ClassNodes that provide
+        'native implementations for standard library functions.
+        Public Function GetStdlib() As List(Of ClassNode)
+            Dim types As New List(Of ClassNode)()
 
-'            Dim print As MethodDefinition = ioClass.DefineMethod("Print", AST.TypeReference.Void)
-'            print.IsStatic = True
-'            print.NativeImpl = New ObjectIR.Core.NativeMethod(Function(args As ObjectIR.Core.Value(Of Object)()) As ObjectIR.Core.Value(Of Object)
-'                                                                  If args Is Nothing OrElse args.Length = 0 Then
-'                                                                      Return New ObjectIR.Core.Value(Of Object)(Nothing)
-'                                                                  End If
-'                                                                  ' call the underlying stdlib implementation
-'                                                                  ObjectIR.Stdlib.System.IO.Print(args(0))
-'                                                                  Return New ObjectIR.Core.Value(Of Object)(Nothing)
-'                                                              End Function)
+            ' IO class
+            Dim ioMethods As New List(Of MethodNode)()
 
-'            Dim println As MethodDefinition = ioClass.DefineMethod("Println", AST.TypeReference.Void)
-'            println.IsStatic = True
-'            println.NativeImpl = New ObjectIR.Core.NativeMethod(Function(args As ObjectIR.Core.Value(Of Object)()) As ObjectIR.Core.Value(Of Object)
-'                                                                    If args Is Nothing OrElse args.Length = 0 Then
-'                                                                        Return New ObjectIR.Core.Value(Of Object)(Nothing)
-'                                                                    End If
-'                                                                    ObjectIR.Stdlib.System.IO.Println(args(0))
-'                                                                    Return New ObjectIR.Core.Value(Of Object)(Nothing)
-'                                                                End Function)
+            ' Print
+            Dim printNative = New NativeMethod(Function(args As Value(Of Object)()) As Value(Of Object)
+                                                   If args IsNot Nothing AndAlso args.Length > 0 Then
+                                                       Console.Write(args(0).Data)
+                                                   End If
+                                                   Return New Value(Of Object)(Nothing)
+                                               End Function)
 
-'            types.Add(ioClass)
+            Dim printParams As New List(Of ParameterNode) From {New ParameterNode("value", TypeRef.String)}
+            Dim printMethod As New MethodNode(name:="Print", parameters:=printParams, returnType:=TypeRef.Void, isStatic:=True, nativeImpl:=printNative)
+            ioMethods.Add(printMethod)
 
-'            Return types
-'        End Function
-'    End Class
-'End Namespace
+            ' Println
+            Dim printlnNative = New NativeMethod(Function(args As Value(Of Object)()) As Value(Of Object)
+                                                     If args IsNot Nothing AndAlso args.Length > 0 Then
+                                                         Console.WriteLine(args(0).Data)
+                                                     Else
+                                                         Console.WriteLine()
+                                                     End If
+                                                     Return New Value(Of Object)(Nothing)
+                                                 End Function)
+
+            Dim printlnParams As New List(Of ParameterNode) From {New ParameterNode("value", TypeRef.String)}
+            Dim printlnMethod As New MethodNode(name:="Println", parameters:=printlnParams, returnType:=TypeRef.Void, isStatic:=True, nativeImpl:=printlnNative)
+            ioMethods.Add(printlnMethod)
+
+            Dim ReadlnNative = New NativeMethod(Function(args As Value(Of Object)()) As Value(Of Object)
+                                                    Return New Value(Of Object)(Console.ReadLine())
+                                                End Function)
+            Dim ReadlnParams As New List(Of ParameterNode)
+            Dim ReadlnMethod As New MethodNode(name:="Readln", parameters:=ReadlnParams, returnType:=TypeRef.String, isStatic:=True, nativeImpl:=ReadlnNative)
+            ioMethods.Add(ReadlnMethod)
+            Dim ioClass As New ClassNode("IO", New List(Of String)(), New List(Of FieldNode)(), New List(Of ConstructorNode)(), ioMethods)
+            ioClass.IsStatic = True
+            types.Add(ioClass)
+
+            Return types
+        End Function
+
+    End Class
+End Namespace
