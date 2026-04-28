@@ -10,7 +10,7 @@ Namespace Runtime
         Public CurrentFrame As CallStack
         Public Property Debug As Boolean = False
 
-        Public Sub Run()
+        Public Sub Run(args As String())
             'Console.WriteLine("Running the CPU...")
             ' looking for a static main 
             Dim programClass = program.Classes.
@@ -41,7 +41,6 @@ Namespace Runtime
             program.Classes.AddRange(New Connectors.StdlibConnector().GetStdlib())
 
             'RecursePrintTypes(program, 0)
-
         End Sub
 
         Public Sub ExecuteMethod(method As MethodNode, Optional thisObj As ManagedObject = Nothing)
@@ -134,7 +133,7 @@ Namespace Runtime
                     Dim callInstr = DirectCast(instr, CallInstruction)
                     Dim targetMethod = ResolveMethod(callInstr.Target)
                     If targetMethod Is Nothing Then
-                        Throw New MethodResolutionException(callInstr.Target.Name, CurrentFrame.ToString())
+                        Throw New MethodResolutionException(callInstr.Target.Name, CurrentFrame.GetStackTrace())
                     End If
                     ExecuteMethod(targetMethod)
                 End If

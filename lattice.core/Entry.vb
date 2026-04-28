@@ -8,16 +8,26 @@ Public Module Program
     Public CPU As CPU
     Public Sub Main(args As String())
         Try
-            Dim programPath As String = Nothing
-            Dim debugMode As Boolean = False
 
-            For Each arg In args
+            Dim debugMode As Boolean = False
+            Dim programPath As String = Nothing
+            Dim Arguments As String() = {}
+
+            For i = 0 To args.Length - 1
+                Dim arg = args(i)
+
                 If arg = "--debug" Then
                     debugMode = True
-                ElseIf Not arg.StartsWith("-") Then
+
+                ElseIf arg = "--" Then
+                    Arguments = args.Skip(i + 1).ToArray()
+                    Exit For
+
+                ElseIf Not arg.StartsWith("-") AndAlso programPath Is Nothing Then
                     programPath = arg
                 End If
             Next
+
 
             If programPath Is Nothing Then
                 Console.WriteLine("Usage: lattice [--debug] <program.oir>")
@@ -27,7 +37,7 @@ Public Module Program
             CPU = New CPU()
             CPU.Debug = debugMode
             CPU.LoadProgram(programPath)
-            CPU.Run()
+            CPU.Run(Arguments)
         Catch ex As LatticeException
             Console.ForegroundColor = ConsoleColor.Red
             Console.Error.WriteLine(ex.Message)

@@ -1,4 +1,5 @@
-﻿Imports ObjectIR.Core.AST
+﻿Imports Humanizer
+Imports ObjectIR.Core.AST
 
 Namespace Core
     Public Class CallStack
@@ -32,7 +33,8 @@ Namespace Core
 
         Public Overrides Function ToString() As String
             Dim name = If(Method IsNot Nothing AndAlso Method.Name IsNot Nothing, Method.Name, "unknown")
-            Return $"{name} @ {IP}"
+            Return $"at {name} @ {IP} with args {Me.Args.Humanize()}"
+            'Return GetStackTrace()
         End Function
 
         Public Function GetStackTrace() As String
