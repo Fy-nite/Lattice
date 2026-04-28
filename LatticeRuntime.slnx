@@ -8,6 +8,7 @@
     <Folder Name="/Solution Items/">
         <File Path=".editorconfig" />
     </Folder>
-    <Project Path="lattice.core/lattice.vbproj" Id="7de3dd13-f329-4807-bda0-64d797d12f65" />
+    <Project Path="lattice.core\lattice.core.vbproj" Id="7de3dd13-f329-4807-bda0-64d797d12f65" />
+    <Project Path="Lattice.Runtime/Lattice.Runtime.csproj" />
     <Project Path="ObjectIR.ModuleGenerator.Tests/Lattice.ObjectIR.Tests.csproj" Id="a77e2127-507f-43c8-b8bd-82fc10410021" />
 </Solution>
