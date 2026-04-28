@@ -1,0 +1,10 @@
+Module: Test (v1.0.0)
+----------------------------------------
+Type: Program
+  constructor               : 1 instructions
+  Meowo                     : 1 instructions
+  Meowt                     : 1 instructions
+  Meowv                     : 1 instructions
+  Meows                     : 1 instructions
+  Main                      : 7 instructions
+

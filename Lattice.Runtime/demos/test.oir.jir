@@ -1,0 +1,353 @@
+{
+  "name": "Test",
+  "version": "1.0.0",
+  "metadata": {},
+  "types": [
+    {
+      "kind": "Class",
+      "name": "ModuleInfo",
+      "access": "Public",
+      "isAbstract": false,
+      "isSealed": false,
+      "interfaces": [],
+      "baseInterfaces": [],
+      "genericParameters": [],
+      "fields": [
+        {
+          "name": "CompilerName",
+          "type": "System.String",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        },
+        {
+          "name": "CompilerVersion",
+          "type": "Syste.String",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        },
+        {
+          "name": "CompilerArgs",
+          "type": "System.String",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        },
+        {
+          "name": "DebugInfo",
+          "type": "List\u003CDebugInfo\u003E",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        }
+      ],
+      "properties": [],
+      "methods": [],
+      "constructors": []
+    },
+    {
+      "kind": "Class",
+      "name": "Debuginfo",
+      "access": "Public",
+      "isAbstract": false,
+      "isSealed": false,
+      "interfaces": [],
+      "baseInterfaces": [],
+      "genericParameters": [],
+      "fields": [
+        {
+          "name": "startline",
+          "type": "System.int",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        },
+        {
+          "name": "endline",
+          "type": "System.int",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        },
+        {
+          "name": "startColum",
+          "type": "system.int",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        },
+        {
+          "name": "endColum",
+          "type": "System.int",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        },
+        {
+          "name": "SourceFile",
+          "type": "System.String",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        },
+        {
+          "name": "instruction",
+          "type": "System.String",
+          "access": "Private",
+          "isStatic": false,
+          "isReadOnly": false
+        }
+      ],
+      "properties": [],
+      "methods": [],
+      "constructors": []
+    },
+    {
+      "kind": "Class",
+      "name": "Program",
+      "access": "Public",
+      "isAbstract": false,
+      "isSealed": false,
+      "interfaces": [],
+      "baseInterfaces": [],
+      "genericParameters": [],
+      "fields": [],
+      "properties": [],
+      "methods": [
+        {
+          "name": "constructor",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": false,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 1,
+          "instructions": [
+            {
+              "opCode": "ret"
+            }
+          ]
+        },
+        {
+          "name": "Meowo",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 1,
+          "instructions": [
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Meowt",
+                  "returnType": "void",
+                  "parameterTypes": []
+                },
+                "arguments": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meowt",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 1,
+          "instructions": [
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Meowv",
+                  "returnType": "void",
+                  "parameterTypes": []
+                },
+                "arguments": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meowv",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 1,
+          "instructions": [
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Meows",
+                  "returnType": "void",
+                  "parameterTypes": []
+                },
+                "arguments": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meows",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 1,
+          "instructions": [
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": []
+                },
+                "arguments": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "Main",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [
+            {
+              "name": "args",
+              "type": "System.string[]"
+            }
+          ],
+          "localVariables": [],
+          "instructionCount": 7,
+          "instructions": [
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022$\u003E\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Print",
+                  "returnType": "void",
+                  "parameterTypes": []
+                },
+                "arguments": [
+                  "System.string"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022meow\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Readln",
+                  "returnType": "string",
+                  "parameterTypes": []
+                },
+                "arguments": []
+              }
+            },
+            {
+              "opCode": "cne"
+            },
+            {
+              "opCode": "if",
+              "operand": {
+                "condition": "stack",
+                "thenBlock": [
+                  {
+                    "opCode": "ldstr",
+                    "operand": "\u0022invalid command\u0022"
+                  },
+                  {
+                    "opCode": "call",
+                    "operand": {
+                      "target": {
+                        "declaringType": "IO",
+                        "name": "Println",
+                        "returnType": "void",
+                        "parameterTypes": []
+                      },
+                      "arguments": [
+                        "System.string"
+                      ]
+                    }
+                  }
+                ],
+                "elseBlock": [
+                  {
+                    "opCode": "ldstr",
+                    "operand": "\u0022invalid command\u0022"
+                  },
+                  {
+                    "opCode": "call",
+                    "operand": {
+                      "target": {
+                        "declaringType": "Program",
+                        "name": "Meowo",
+                        "returnType": "void",
+                        "parameterTypes": []
+                      },
+                      "arguments": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "opCode": "ret"
+            }
+          ]
+        }
+      ],
+      "constructors": []
+    }
+  ],
+  "functions": []
+}

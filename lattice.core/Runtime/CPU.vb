@@ -9,6 +9,7 @@ Namespace Runtime
         Public program As ModuleNode
         Public CurrentFrame As CallStack
         Public Property Debug As Boolean = False
+        Public Property MaxStackDepth As Integer = 1000
 
         Public Sub Run(args As String())
             'Console.WriteLine("Running the CPU...")
@@ -30,7 +31,15 @@ Namespace Runtime
                 Throw New EntrypointNotFoundException("Entrypoint 'Program.Main' not found", "Create a 'Program' class with a 'Main' method to serve as the entry point.")
             End If
 
-            ExecuteMethod(main)
+            ' If Main takes arguments, push them to a temporary stack or handle them
+            ' For now, we'll assume Main might take a string array.
+            ' Since we don't have a formal Array object yet, we pass the raw String().
+            Dim mainArgs As New List(Of Object)()
+            If main.Parameters.Count > 0 Then
+                mainArgs.Add(args)
+            End If
+
+            ExecuteMethod(main, Nothing, mainArgs.ToArray())
         End Sub
 
         Public Sub LoadProgram(path As String)
@@ -42,43 +51,91 @@ Namespace Runtime
 
             'RecursePrintTypes(program, 0)
         End Sub
+        Public Sub LoadModule(Modz As ModuleNode)
+            program = Modz
+            program.Classes.AddRange(New Connectors.StdlibConnector().GetStdlib())
+        End Sub
 
-        Public Sub ExecuteMethod(method As MethodNode, Optional thisObj As ManagedObject = Nothing)
+        Public Sub GetStacktrace()
+
+        End Sub
+
+        Private Function GetStackDepth() As Integer
+            Dim depth = 0
+            Dim current = CurrentFrame
+            While current IsNot Nothing
+                depth += 1
+                current = current.Previous
+            End While
+            Return depth
+        End Function
+
+        Public Sub ExecuteMethod(method As MethodNode, Optional thisObj As ManagedObject = Nothing, Optional providedArgs As Object() = Nothing)
             If Debug Then Console.WriteLine($"[DEBUG] Executing method: {method.Name}")
+
+            Dim argCount = method.Parameters.Count
+            Dim poppedArgs(argCount - 1) As Object
+
+            If providedArgs IsNot Nothing Then
+                For i As Integer = 0 To Math.Min(providedArgs.Length, argCount) - 1
+                    poppedArgs(i) = providedArgs(i)
+                Next
+            ElseIf CurrentFrame IsNot Nothing Then
+                For i As Integer = argCount - 1 To 0 Step -1
+                    poppedArgs(i) = CurrentFrame.EvaluationStack.Pop()
+                Next
+            End If
 
             If method.NativeImpl IsNot Nothing Then
                 If Debug Then Console.WriteLine($"[DEBUG] Calling native method: {method.Name}")
-                Dim argCount = method.Parameters.Count
-                Dim args(argCount - 1) As Value(Of Object)
-                For i As Integer = argCount - 1 To 0 Step -1
-                    Dim popped = CurrentFrame.EvaluationStack.Pop()
+                Dim nativeArgs(argCount - 1) As Value(Of Object)
+                For i As Integer = 0 To argCount - 1
+                    Dim popped = poppedArgs(i)
                     If Debug Then Console.WriteLine($"[DEBUG]   Arg {i}: {popped}")
                     If TypeOf popped Is Value(Of Object) Then
-                        args(i) = DirectCast(popped, Value(Of Object))
+                        nativeArgs(i) = DirectCast(popped, Value(Of Object))
                     Else
-                        args(i) = New Value(Of Object)(popped)
+                        nativeArgs(i) = New Value(Of Object)(popped)
                     End If
                 Next
-                Dim result = method.NativeImpl.Method.Invoke(args)
+                Dim result = method.NativeImpl.Method.Invoke(nativeArgs)
                 If method.ReturnType.Name <> "void" AndAlso result IsNot Nothing Then
-                    CurrentFrame.EvaluationStack.Push(result)
+                    If CurrentFrame IsNot Nothing Then
+                        CurrentFrame.EvaluationStack.Push(result)
+                    End If
                 End If
                 Return
             End If
 
-            If CurrentFrame Is Nothing Then
-                CurrentFrame = New CallStack(method, thisObj)
-            Else
-                CurrentFrame = CurrentFrame.PushFrame(method, thisObj)
+            ' Check for stack overflow
+            If GetStackDepth() >= MaxStackDepth Then
+                Throw New LatticeStackOverflowException(If(CurrentFrame IsNot Nothing, CurrentFrame.GetStackTrace(), "at " & method.Name))
             End If
 
-            While CurrentFrame.IP < CurrentFrame.Method.Body.Statements.Count
-                Dim Instruction = CurrentFrame.Method.Body.Statements(CurrentFrame.IP)
-                ExecuteInstruction(Instruction)
-                CurrentFrame.IP += 1
-            End While
+            Dim newFrame As CallStack
+            If CurrentFrame Is Nothing Then
+                newFrame = New CallStack(method, thisObj)
+            Else
+                newFrame = CurrentFrame.PushFrame(method, thisObj)
+            End If
 
-            CurrentFrame = CurrentFrame.PopFrame()
+            ' Map parameters to Args
+            For i As Integer = 0 To argCount - 1
+                newFrame.Args(method.Parameters(i).Name) = poppedArgs(i)
+            Next
+
+            Dim oldFrame = CurrentFrame
+            CurrentFrame = newFrame
+
+            Try
+                While CurrentFrame.IP < CurrentFrame.Method.Body.Statements.Count
+                    Dim Instruction = CurrentFrame.Method.Body.Statements(CurrentFrame.IP)
+                    ExecuteInstruction(Instruction)
+                    CurrentFrame.IP += 1
+                End While
+            Finally
+                CurrentFrame = oldFrame
+            End Try
         End Sub
 
         Public Sub ExecuteInstruction(ins As Statement)
@@ -127,7 +184,7 @@ Namespace Runtime
                             ' Handle return (can be more complex if returning values)
                             CurrentFrame.IP = CurrentFrame.Method.Body.Statements.Count
                         Case Else
-                            Throw New OpCodeNotFoundException(simple.OpCode, CurrentFrame.ToString())
+                            Throw New OpCodeNotFoundException(simple.OpCode, CurrentFrame.GetStackTrace())
                     End Select
                 ElseIf TypeOf instr Is CallInstruction Then
                     Dim callInstr = DirectCast(instr, CallInstruction)

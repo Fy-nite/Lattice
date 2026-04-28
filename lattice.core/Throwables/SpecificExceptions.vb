@@ -19,4 +19,11 @@ Namespace Throwables
             MyBase.New(message, "E001", help)
         End Sub
     End Class
+
+    Public Class LatticeStackOverflowException
+        Inherits RuntimeException
+        Public Sub New(location As String)
+            MyBase.New("Stack overflow", "R005", "The virtual machine has reached its maximum recursion depth. Check for infinite recursion in your code.", location)
+        End Sub
+    End Class
 End Namespace

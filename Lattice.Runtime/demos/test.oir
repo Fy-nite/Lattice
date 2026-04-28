@@ -1,29 +1,26 @@
 module Test version 1.0.0
 
-class ModuleInfo
-{
-    field CompilerName: System.String
-    field CompilerVersion: Syste.String
-    field CompilerArgs: System.String
-    field DebugInfo: List<DebugInfo>
+class ModuleInfo {
+    private field CompilerName: System.String
+    private field CompilerVersion: Syste.String
+    private field CompilerArgs: System.String
+    private field DebugInfo: List<DebugInfo>
 }
 
-class Debuginfo
-{
-    field startline: System.int
-    field endline: System.int
-    field startColum: system.int
-    field endColum: System.int
-    field SourceFile: System.String
-    field instruction: System.String
+class Debuginfo {
+    private field startline: System.int
+    private field endline: System.int
+    private field startColum: system.int
+    private field endColum: System.int
+    private field SourceFile: System.String
+    private field instruction: System.String
 }
 
-class Program
-{
-    
+class Program {
     method constructor() -> void {
         ret
     }
+
     static method Meowo() -> void {
         call Program.Meowt() -> void
     }
@@ -37,20 +34,25 @@ class Program
     }
 
     static method Meows() -> void {
-        call IO.Println(System.string) -> void
+        call IO.Println() -> void
     }
 
-	static method Main(args: System.string[]) -> void {
+    static method Main(args: System.string[]) -> void {
         ldstr "$>"
-        call  IO.Print(System.string) -> void
+        call IO.Print(System.string) -> void
         ldstr "meow"
-        call  IO.Readln() -> string
+        call IO.Readln() -> string
         cne
-        if (stack)
+        if (stack) {
+            ldstr "invalid command"
+           call IO.Println(System.string) -> void
+        }
+        else
         {
             ldstr "invalid command"
-            call Program.Meowo(System.string) -> void
+            call Program.Meowo() -> void
         }
         ret
     }
 }
+
