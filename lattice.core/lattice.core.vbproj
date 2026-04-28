@@ -20,10 +20,4 @@
     <ProjectReference Include="..\Libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="demos\test.oir">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>
