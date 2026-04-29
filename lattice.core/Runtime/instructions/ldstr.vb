@@ -1,10 +1,8 @@
 ﻿Imports lattice.Core
 
 Namespace Runtime.instructions
-    Public Class ldstr
-        Implements Instruction
-        Public Sub execute(callStack As CallStack) Implements Instruction.execute
-            Throw New NotImplementedException()
-        End Sub
+    Public MustInherit Class ldstr
+        Public name As String
+        Public MustOverride Sub execute(callStack As CallStack)
     End Class
 End Namespace
