@@ -182,15 +182,15 @@ public class CPU
                             {
                                 str = str.Substring(1, checked(str.Length - 2));
                             }
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(str));
+                            CurrentFrame.EvaluationStack.Push(new Value<string>(str));
                             break;
                         }
                     case "ldc.i4":
-                        CurrentFrame.EvaluationStack.Push(new Value<object>(int.Parse(simple.Operand!)));
+                        CurrentFrame.EvaluationStack.Push(new Value<int>(int.Parse(simple.Operand!)));
                         break;
 
                     case "ldc.r4":
-                        CurrentFrame.EvaluationStack.Push(new Value<object>(float.Parse(simple.Operand!)));
+                        CurrentFrame.EvaluationStack.Push(new Value<float>(float.Parse(simple.Operand!)));
                         break;
 
                     case "ldnull":
@@ -238,81 +238,72 @@ public class CPU
                     case "add":
                         {
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(Convert.ToInt32(a) + Convert.ToInt32(b)));
+                            CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) + Convert.ToInt32(Unwrap(b))));
                             break;
                         }
                     case "sub":
                         {
                             var (a, b) = PopTwo();
-
-                            CurrentFrame.EvaluationStack.Push(
-                                new Value<object>(
-                                    Convert.ToInt32(Unwrap(a)) -
-                                    Convert.ToInt32(Unwrap(b))
-                                )
-                            );
-
+                            CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) - Convert.ToInt32(Unwrap(b))));
                             break;
                         }
                     case "mul":
                         {
                             var (a, b) = PopTwo();
-
-                            CurrentFrame.EvaluationStack.Push(
-                                new Value<object>(
-                                    Convert.ToInt32(Unwrap(a)) *
-                                    Convert.ToInt32(Unwrap(b))
-                                )
-                            );
-
+                            CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) * Convert.ToInt32(Unwrap(b))));
                             break;
                         }
                     
                     case "ceq":
                         {
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(Equals(Unwrap(a), Unwrap(b))));
+                            CurrentFrame.EvaluationStack.Push(new Value<bool>(Equals(Unwrap(a), Unwrap(b))));
                             break;
                         }
                     case "cne":
                         {
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(!Equals(Unwrap(a), Unwrap(b))));
+                            CurrentFrame.EvaluationStack.Push(new Value<bool>(!Equals(Unwrap(a), Unwrap(b))));
                             break;
                         }
                     case "cgt":
                         {
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(
-                                Compare(Unwrap(a), Unwrap(b)) > 0));
+                            CurrentFrame.EvaluationStack.Push(new Value<bool>(Compare(Unwrap(a), Unwrap(b)) > 0));
                             break;
                         }
                     case "clt":
                         {
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(
-                                Compare(Unwrap(a), Unwrap(b)) < 0));
+                            CurrentFrame.EvaluationStack.Push(new Value<bool>(Compare(Unwrap(a), Unwrap(b)) < 0));
                             break;
                         }
                     case "cgt.un":
                         {
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(
-                                CompareUnsigned(Unwrap(a), Unwrap(b)) > 0));
+                            CurrentFrame.EvaluationStack.Push(new Value<bool>(CompareUnsigned(Unwrap(a), Unwrap(b)) > 0));
                             break;
                         }
                     case "cge.un":
                         {
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(
-                                CompareUnsigned(Unwrap(a), Unwrap(b)) >= 0));
+                            CurrentFrame.EvaluationStack.Push(new Value<bool>(CompareUnsigned(Unwrap(a), Unwrap(b)) >= 0));
+                            break;
+                        }
+                    case "not":
+                        {
+                            var a = CurrentFrame.EvaluationStack.Pop();
+                            if (Unwrap(a) is bool boolVal)
+                            {
+                                CurrentFrame.EvaluationStack.Push(new Value<bool>(!boolVal));
+                            }
                             break;
                         }
 
                     default:
                     
-                        var s = simple.Location;
-                        throw new OpCodeNotFoundException(simple.OpCode, s.Line + " " + s.SourceLine +  "\n" + CurrentFrame.GetStackTrace());
+                    
+                        throw new OpCodeNotFoundException(simple.OpCode, CurrentFrame.GetStackTrace());
                         
                     
                         Console.WriteLine(simple.OpCode, CurrentFrame.GetStackTrace());
@@ -351,10 +342,61 @@ public class CPU
                 ExecuteBlock(whileStmt.Body);
             }
         }
+        else if (ins is SwitchStatement)
+        {
+            ExecuteSwitch((SwitchStatement)ins);
+        }
         else if (ins is BlockStatement)
         {
             ExecuteBlock((BlockStatement)ins);
         }
+    }
+
+    private void ExecuteSwitch(SwitchStatement stmt)
+    {
+        object val = EvaluateExpression(stmt.Expression);
+        int intVal = Convert.ToInt32(val);
+
+        foreach (var switchCase in stmt.Cases)
+        {
+            if (switchCase.Value.HasValue && switchCase.Value.Value == intVal)
+            {
+                ExecuteBlock(switchCase.Body);
+                return;
+            }
+        }
+
+        // Find and execute 'default' case (value is null)
+        foreach (var switchCase in stmt.Cases)
+        {
+            if (!switchCase.Value.HasValue)
+            {
+                ExecuteBlock(switchCase.Body);
+                return;
+            }
+        }
+    }
+
+    private object EvaluateExpression(string expression)
+    {
+        if (Operators.CompareString(expression, "stack", TextCompare: false) == 0)
+        {
+            if (CurrentFrame.EvaluationStack.Count == 0)
+            {
+                throw new RuntimeException("switch expression requires value on stack, but it is empty.", CurrentFrame.GetStackTrace());
+            }
+            object val = CurrentFrame.EvaluationStack.Pop();
+            return Unwrap(val) ?? val;
+        }
+        
+        // Assume it's a local or something else if not "stack"
+        if (CurrentFrame.Locals.ContainsKey(expression))
+        {
+            var val = CurrentFrame.Locals[expression];
+            return Unwrap(val) ?? val;
+        }
+
+        return expression; // literal or other
     }
 
     private void ExecuteBlock(BlockStatement block)
@@ -374,21 +416,18 @@ public class CPU
                 var locInfo = (ins != null) ? $"\n at {ins.Line}: {ins.SourceLine}" : "";
                 throw new RuntimeException($"condition requires value on stack, but it is empty.{locInfo}", CurrentFrame.GetStackTrace());
             }
-            object val = RuntimeHelpers.GetObjectValue(CurrentFrame.EvaluationStack.Pop());
-            object data = RuntimeHelpers.GetObjectValue(val);
-            if (val is Value<object>)
+            object val = CurrentFrame.EvaluationStack.Pop();
+            object? data = Unwrap(val);
+            
+            if (data is bool boolVal)
             {
-                data = RuntimeHelpers.GetObjectValue(((Value<object>)val).Data);
+                return boolVal;
             }
-            if (!(data is bool EvaluateCondition))
+            if (data is int intVal)
             {
-                if (data is int)
-                {
-                    return (int)data != 0;
-                }
-                return data != null;
+                return intVal != 0;
             }
-            return EvaluateCondition;
+            return data != null;
         }
         return false;
     }
@@ -420,7 +459,7 @@ public class CPU
     }
 
     private static object? Unwrap(object? val)
-        => val is Value<object> v ? v.Data : val;
+        => val is IValue v ? v.GetObjectData() : val;
 
     private static int Compare(object? a, object? b)
     {
