@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using lattice.Connectors;
 using lattice.Core;
 using lattice.Throwables;
@@ -13,6 +13,8 @@ public class CPU
     public CallStack CurrentFrame;
 
     public bool Debug { get; set; }
+
+    private lattice.Runtime.Debugging.Debugger _debugger = new lattice.Runtime.Debugging.Debugger();
 
     public int MaxStackDepth { get; set; }
 
@@ -160,6 +162,11 @@ public class CPU
 
     public void ExecuteInstruction(Statement ins)
     {
+        if (Debug)
+        {
+            _debugger.Step(this, ins);
+        }
+
         if (ins is InstructionStatement)
         {
             Instruction instr = ((InstructionStatement)ins).Instruction;
@@ -174,7 +181,7 @@ public class CPU
                             if (str.StartsWith("\"") && str.EndsWith("\""))
                             {
                                 str = str.Substring(1, checked(str.Length - 2));
-                             }
+                            }
                             CurrentFrame.EvaluationStack.Push(new Value<object>(str));
                             break;
                         }
@@ -195,7 +202,21 @@ public class CPU
                         break;
 
                     case "stloc":
+                        if (CurrentFrame.EvaluationStack.Count == 0)
+                        {
+                            var sz = ins.Location;
+                            throw new RuntimeException($"stloc '{simple.Operand}' requires value on stack, but it is empty at {sz.Line}: {sz.SourceLine}", CurrentFrame.GetStackTrace());
+                        }
                         CurrentFrame.Locals[simple.Operand!] = CurrentFrame.EvaluationStack.Pop();
+                        break;
+
+                    case "starg":
+                        if (CurrentFrame.EvaluationStack.Count == 0)
+                        {
+                            var sx = ins.Location;
+                            throw new RuntimeException($"starg '{simple.Operand}' requires value on stack, but it is empty at {sx.Line}: {sx.SourceLine}", CurrentFrame.GetStackTrace());
+                        }
+                        CurrentFrame.Args[simple.Operand!] = CurrentFrame.EvaluationStack.Pop();
                         break;
 
                     case "ldarg":
@@ -223,9 +244,30 @@ public class CPU
                     case "sub":
                         {
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<object>(Convert.ToInt32(a) - Convert.ToInt32(b)));
+
+                            CurrentFrame.EvaluationStack.Push(
+                                new Value<object>(
+                                    Convert.ToInt32(Unwrap(a)) -
+                                    Convert.ToInt32(Unwrap(b))
+                                )
+                            );
+
                             break;
                         }
+                    case "mul":
+                        {
+                            var (a, b) = PopTwo();
+
+                            CurrentFrame.EvaluationStack.Push(
+                                new Value<object>(
+                                    Convert.ToInt32(Unwrap(a)) *
+                                    Convert.ToInt32(Unwrap(b))
+                                )
+                            );
+
+                            break;
+                        }
+                    
                     case "ceq":
                         {
                             var (a, b) = PopTwo();
@@ -268,11 +310,15 @@ public class CPU
                         }
 
                     default:
+                    
+                        var s = simple.Location;
+                        throw new OpCodeNotFoundException(simple.OpCode, s.Line + " " + s.SourceLine +  "\n" + CurrentFrame.GetStackTrace());
+                        
+                    
                         Console.WriteLine(simple.OpCode, CurrentFrame.GetStackTrace());
                         break;
 
                 }
-                        //throw new OpCodeNotFoundException(simple.OpCode, CurrentFrame.GetStackTrace());
             }
             else if (instr is CallInstruction)
             {
@@ -288,7 +334,7 @@ public class CPU
         else if (ins is IfStatement)
         {
             IfStatement ifStmt = (IfStatement)ins;
-            if (EvaluateCondition(ifStmt.Condition))
+            if (EvaluateCondition(ifStmt.Condition, ifStmt.Location))
             {
                 ExecuteBlock(ifStmt.Then);
             }
@@ -300,7 +346,7 @@ public class CPU
         else if (ins is WhileStatement)
         {
             WhileStatement whileStmt = (WhileStatement)ins;
-            while (EvaluateCondition(whileStmt.Condition))
+            while (EvaluateCondition(whileStmt.Condition, whileStmt.Location))
             {
                 ExecuteBlock(whileStmt.Body);
             }
@@ -319,10 +365,15 @@ public class CPU
         }
     }
 
-    private bool EvaluateCondition(string condition)
+    private bool EvaluateCondition(string condition, SourceLocation ins)
     {
         if (Operators.CompareString(condition, "stack", TextCompare: false) == 0)
         {
+            if (CurrentFrame.EvaluationStack.Count == 0)
+            {
+                var locInfo = (ins != null) ? $"\n at {ins.Line}: {ins.SourceLine}" : "";
+                throw new RuntimeException($"condition requires value on stack, but it is empty.{locInfo}", CurrentFrame.GetStackTrace());
+            }
             object val = RuntimeHelpers.GetObjectValue(CurrentFrame.EvaluationStack.Pop());
             object data = RuntimeHelpers.GetObjectValue(val);
             if (val is Value<object>)
