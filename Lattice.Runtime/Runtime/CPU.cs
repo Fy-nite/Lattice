@@ -205,7 +205,14 @@ public class CPU
                         if (CurrentFrame.EvaluationStack.Count == 0)
                         {
                             var sz = ins.Location;
-                            throw new RuntimeException($"stloc '{simple.Operand}' requires value on stack, but it is empty at {sz.Line}: {sz.SourceLine}", CurrentFrame.GetStackTrace());
+                            if (sz != null)
+                            {
+                                throw new RuntimeException($"stloc '{simple.Operand}' requires value on stack, but it is empty at {sz.Line}: {sz.SourceLine}", CurrentFrame.GetStackTrace());
+                            }
+                            else
+                            {
+                                throw new RuntimeException($"stloc '{simple.Operand}' requires value on stack, but it is empty", CurrentFrame.GetStackTrace());
+                            }
                         }
                         CurrentFrame.Locals[simple.Operand!] = CurrentFrame.EvaluationStack.Pop();
                         break;
@@ -320,6 +327,16 @@ public class CPU
                     throw new MethodResolutionException(callInstr.Target.Name, CurrentFrame.GetStackTrace());
                 }
                 ExecuteMethod(targetMethod);
+            }
+            else if (instr is NewObjInstruction)
+            {
+                NewObjInstruction newObj = (NewObjInstruction)instr;
+                MethodNode ctor = ResolveMethod(newObj.Constructor);
+                if ((object)ctor == null)
+                {
+                    throw new MethodResolutionException(newObj.Constructor.Name, CurrentFrame.GetStackTrace());
+                }
+                ExecuteMethod(ctor);
             }
         }
         else if (ins is IfStatement)
