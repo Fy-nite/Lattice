@@ -331,12 +331,20 @@ public class CPU
             else if (instr is NewObjInstruction)
             {
                 NewObjInstruction newObj = (NewObjInstruction)instr;
+                try
+                {
+                    
                 MethodNode ctor = ResolveMethod(newObj.Constructor);
                 if ((object)ctor == null)
                 {
                     throw new MethodResolutionException(newObj.Constructor.Name, CurrentFrame.GetStackTrace());
                 }
                 ExecuteMethod(ctor);
+                }
+                catch (Exception ex)
+                {
+                    throw new RuntimeException($"Failed to create object for type {newObj}: {ex.Message}", CurrentFrame.GetStackTrace());
+                }
             }
         }
         else if (ins is IfStatement)
