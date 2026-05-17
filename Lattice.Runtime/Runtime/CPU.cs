@@ -8,6 +8,8 @@ using ObjectIR.Core.AST;
 
 public class CPU
 {
+    public List<ModuleNode> Modules;
+
     public ModuleNode program;
 
     public CallStack CurrentFrame;
