@@ -5,20 +5,37 @@ using lattice.Throwables;
 using Microsoft.VisualBasic.CompilerServices;
 using ObjectIR.Core;
 using ObjectIR.Core.AST;
+using ObjectIR.StdLib.Core.Memory;
 
-public class CPU
+public class CPU : IProgramLoader
 {
-    public List<ModuleNode> Modules;
+    public lattice.Runtime.Scheduler Scheduler { get; set; }
+    public List<ModuleNode> Modules = new();
+    // ... rest of fields ...
 
-    public ModuleNode program;
+    // IProgramLoader Implementation
+    // ...
+    void IProgramLoader.SpawnThread(IDelagate entryPoint)
+    {
+        if (Scheduler == null) return;
+        
+        var newCpu = new CPU
+        {
+            program = this.program,
+            Modules = this.Modules,
+            Debug = this.Debug,
+            MaxStackDepth = this.MaxStackDepth,
+            Scheduler = this.Scheduler
+        };
 
-    public CallStack CurrentFrame;
-
-    public bool Debug { get; set; }
-
-    private lattice.Runtime.Debugging.Debugger _debugger = new lattice.Runtime.Debugging.Debugger();
-
-    public int MaxStackDepth { get; set; }
+        // Resolve method from delegate
+        MethodNode method = ResolveMethod(entryPoint.Method);
+        if (method != null)
+        {
+            newCpu.PushFrame(method);
+            Scheduler.AddThread(newCpu);
+        }
+    }
 
     public CPU()
     {
@@ -26,28 +43,69 @@ public class CPU
         MaxStackDepth = 1000;
     }
 
-    public void Run(string[] args)
+    public void InitializeMain(string[] args)
     {
         ClassNode programClass = program.Classes.FirstOrDefault([SpecialName] (ClassNode c) => Operators.CompareString(c.Name, "Program", TextCompare: false) == 0);
         MethodNode main = null;
         if ((object)programClass != null)
         {
             main = programClass.Methods.FirstOrDefault([SpecialName] (MethodNode m) => Operators.CompareString(m.Name, "Main", TextCompare: false) == 0);
-            if ((object)main != null && !main.IsStatic)
-            {
-                throw new EntrypointNotFoundException("Program does not contain a static main suitable for entrypoint", "Ensure your 'Main' method in the 'Program' class is marked as static.");
-            }
         }
+        
         if ((object)main == null)
         {
             throw new EntrypointNotFoundException("Entrypoint 'Program.Main' not found", "Create a 'Program' class with a 'Main' method to serve as the entry point.");
         }
+
         List<object> mainArgs = new List<object>();
         if (main.Parameters.Count > 0)
         {
             mainArgs.Add(args);
         }
-        ExecuteMethod(main, null, mainArgs.ToArray());
+
+        // Setup the initial frame
+        CurrentFrame = new CallStack(main, null);
+        if (main.Parameters.Count > 0)
+        {
+            CurrentFrame.Args[main.Parameters[0].Name] = args;
+        }
+    }
+
+    public void PushFrame(MethodNode method, ManagedObject thisObj = null, object[] args = null)
+    {
+        CallStack newFrame = ((CurrentFrame != null) ? CurrentFrame.PushFrame(method, thisObj) : new CallStack(method, thisObj));
+        if (args != null)
+        {
+            for (int i = 0; i < Math.Min(args.Length, method.Parameters.Count); i++)
+            {
+                newFrame.Args[method.Parameters[i].Name] = args[i];
+            }
+        }
+        CurrentFrame = newFrame;
+    }
+
+    /// <summary>
+    /// Executes a single instruction from the current frame.
+    /// Returns true if execution can continue, false if the thread has finished or is blocked.
+    /// </summary>
+    public bool Step()
+    {
+        if (CurrentFrame == null) return false;
+
+        using (ProgramLoader.Activate(this))
+        {
+            if (CurrentFrame.IP < CurrentFrame.Method.Body.Statements.Count)
+            {
+                Statement instruction = CurrentFrame.Method.Body.Statements[CurrentFrame.IP];
+                ExecuteInstruction(instruction);
+                CurrentFrame.IP++;
+                return true;
+            }
+
+            // Current method finished, pop frame
+            CurrentFrame = CurrentFrame.Previous;
+            return CurrentFrame != null;
+        }
     }
 
     public void LoadProgram(string path)
@@ -57,13 +115,11 @@ public class CPU
         {
             throw new FileNotFoundException($"File not found: {path}, are you sure that the file exists?");
         }
-        program.Classes.AddRange(new StdlibConnector().GetStdlib());
     }
 
     public void LoadModule(ModuleNode Modz)
     {
         program = Modz;
-        program.Classes.AddRange(new StdlibConnector().GetStdlib());
     }
 
 
@@ -86,7 +142,7 @@ public class CPU
         int argCount = method.Parameters.Count;
         checked
         {
-            object[] poppedArgs = new object[argCount - 1 + 1];
+            object[] poppedArgs = new object[argCount];
             if (providedArgs != null)
             {
                 int num = Math.Min(providedArgs.Length, argCount) - 1;
@@ -103,13 +159,14 @@ public class CPU
                     poppedArgs[j] = RuntimeHelpers.GetObjectValue(CurrentFrame.EvaluationStack.Pop());
                 }
             }
+            
             if (method.NativeImpl != null)
             {
                 if (Debug)
                 {
                     Console.WriteLine($"[DEBUG] Calling native method: {method.Name}");
                 }
-                Value<object>[] nativeArgs = new Value<object>[argCount - 1 + 1];
+                Value<object>[] nativeArgs = new Value<object>[argCount];
                 int num3 = argCount - 1;
                 for (int k = 0; k <= num3; k++)
                 {
@@ -127,37 +184,57 @@ public class CPU
                         nativeArgs[k] = new Value<object>(RuntimeHelpers.GetObjectValue(popped));
                     }
                 }
-                Value<object> result = method.NativeImpl.Method(nativeArgs);
+
+                // Native calls also need context
+                Value<object> result;
+                using (ProgramLoader.Activate(this))
+                {
+                    result = method.NativeImpl.Method(nativeArgs);
+                }
+
                 if (Operators.CompareString(method.ReturnType.Name, "void", TextCompare: false) != 0 && result != null && CurrentFrame != null)
                 {
                     CurrentFrame.EvaluationStack.Push(result);
                 }
                 return;
             }
+
             if (GetStackDepth() >= MaxStackDepth)
             {
                 throw new LatticeStackOverflowException((CurrentFrame != null) ? CurrentFrame.GetStackTrace() : ("at " + method.Name));
             }
+            
             CallStack newFrame = ((CurrentFrame != null) ? CurrentFrame.PushFrame(method, thisObj) : new CallStack(method, thisObj));
             int num4 = argCount - 1;
             for (int l = 0; l <= num4; l++)
             {
                 newFrame.Args[method.Parameters[l].Name] = RuntimeHelpers.GetObjectValue(poppedArgs[l]);
             }
+            
             CallStack oldFrame = CurrentFrame;
             CurrentFrame = newFrame;
+            
+            // If we are not in a granular "Step" mode, we run to completion
+            // This maintains backward compatibility for Run()
             try
             {
-                while (CurrentFrame.IP < CurrentFrame.Method.Body.Statements.Count)
+                while (CurrentFrame == newFrame && CurrentFrame.IP < CurrentFrame.Method.Body.Statements.Count)
                 {
                     Statement Instruction = CurrentFrame.Method.Body.Statements[CurrentFrame.IP];
                     ExecuteInstruction(Instruction);
                     CurrentFrame.IP++;
                 }
+                
+                // If the frame finished, pop it
+                if (CurrentFrame == newFrame && CurrentFrame.IP >= CurrentFrame.Method.Body.Statements.Count)
+                {
+                    CurrentFrame = oldFrame;
+                }
             }
             finally
             {
-                CurrentFrame = oldFrame;
+                // In a recursive ExecuteMethod, we want to restore the frame if it didn't finish
+                // but usually it finishes here.
             }
         }
     }
@@ -262,6 +339,13 @@ public class CPU
                             CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) * Convert.ToInt32(Unwrap(b))));
                             break;
                         }
+                    case "div":
+                        {
+
+                            var (a, b) = PopTwo();
+                            CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) / Convert.ToInt32(Unwrap(b))));
+                            break;
+                        }
                     
                     case "ceq":
                         {
@@ -310,13 +394,9 @@ public class CPU
                         }
 
                     default:
-                    
-                    
                         throw new OpCodeNotFoundException(simple.OpCode, CurrentFrame.GetStackTrace());
-                        
-                    
-                        Console.WriteLine(simple.OpCode, CurrentFrame.GetStackTrace());
-                        break;
+                        //Console.WriteLine(simple.OpCode, CurrentFrame.GetStackTrace());
+                        //break;
 
                 }
             }
@@ -460,6 +540,22 @@ public class CPU
     }
 
     private MethodNode ResolveMethod(MethodReference target)
+    {
+        // 1. Local resolution (already loaded in AST)
+        var method = ResolveLocalMethod(target);
+        if (method != null) return method;
+
+        // 2. On-demand dynamic registration from hooks
+        if (NativeRegistry.TryRegister(target.DeclaringType.Name, program))
+        {
+            // Now that it's registered in the AST, resolve it locally
+            return ResolveLocalMethod(target);
+        }
+
+        return null;
+    }
+
+    private MethodNode ResolveLocalMethod(MethodReference target)
     {
         foreach (ClassNode cls in program.Classes)
         {

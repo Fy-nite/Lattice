@@ -45,7 +45,7 @@ class Program
         public IEnumerable<string> ProgramArgs { get; set; } = Enumerable.Empty<string>();
     }
 
-    public static CPU cpu = new();
+    public static Scheduler scheduler = new();
     public static ModuleNode RootModule = default!;
 
     static void Main(string[] args)
@@ -117,9 +117,20 @@ class Program
 
         try
         {
-            cpu.Debug = opts.Debug;
-            cpu.LoadModule(RootModule);
-            cpu.Run(opts.ProgramArgs.ToArray());
+            // Scan for native hooks in the standard library
+            NativeRegistry.RegisterFromAssembly(typeof(ObjectIR.Stdlib.System.IO).Assembly);
+
+            CPU mainCpu = new();
+            mainCpu.Debug = opts.Debug;
+            mainCpu.LoadModule(RootModule);
+            
+            // We need to initialize the main thread in the CPU
+            // instead of calling Run() which is blocking.
+            // We'll add a Prepare() or similar to CPU.
+            mainCpu.InitializeMain(opts.ProgramArgs.ToArray());
+            
+            scheduler.AddThread(mainCpu);
+            scheduler.Run();
         }
         catch (LatticeStackOverflowException st)
         {
