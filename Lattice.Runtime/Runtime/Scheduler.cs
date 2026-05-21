@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using ObjectIR.Core.AST;
 
 namespace lattice.Runtime
@@ -31,9 +32,22 @@ namespace lattice.Runtime
 
                 foreach (var cpu in toStep)
                 {
-                    bool canContinue = cpu.Step();
-                    if (!canContinue)
+                    try
                     {
+                        bool canContinue = cpu.Step();
+                        if (!canContinue)
+                        {
+                            lock (_lock)
+                            {
+                                _threads.Remove(cpu);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"[SCHEDULER ERROR] Thread crashed: {ex.Message}");
+                        Console.ResetColor();
                         lock (_lock)
                         {
                             _threads.Remove(cpu);
@@ -42,34 +56,8 @@ namespace lattice.Runtime
                 }
 
                 // Small sleep to prevent 100% CPU usage if all threads are yielding/waiting
-             
                 Thread.Sleep(1);
             }
-        }
-
-        /// <summary>
-        /// Spawns a new thread (CPU instance) sharing the same program/modules.
-        /// </summary>
-        public CPU Spawn(CPU parent, MethodReference entryPoint)
-        {
-            var newCpu = new CPU
-            {
-                program = parent.program,
-                Modules = parent.Modules,
-                Debug = parent.Debug,
-                MaxStackDepth = parent.MaxStackDepth
-            };
-
-            // We need to resolve the method and start it in the new CPU
-            // This might require a specialized ExecuteMethod that doesn't run the loop immediately
-            // or just rely on the Scheduler to pick it up via Step()
-            
-            // For now, let's assume we can resolve the method
-            // Actually, we need to find the MethodNode
-            // We'll use the parent's resolve logic or a shared resolver
-            
-            // This is a bit simplified, but demonstrates the concept
-            return newCpu;
         }
     }
 }
