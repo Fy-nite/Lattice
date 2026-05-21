@@ -17,6 +17,9 @@ Namespace Core
             Me.Locals = New Dictionary(Of String, Object)()
             Me.Args = New Dictionary(Of String, Object)()
             Me.This = thisObj
+            If thisObj IsNot Nothing Then
+                Me.Args("this") = thisObj
+            End If
             Me.Previous = Nothing
             Me.EvaluationStack = New Stack(Of Object)()
         End Sub

@@ -7,6 +7,7 @@ using lattice;
 using lattice.Throwables;
 using MongoDB.Bson;
 using System.Reflection;
+using ObjectIR.StdLib.Core.Memory;
 
 namespace lattice.Runtime;
 
@@ -121,6 +122,7 @@ class Program
             NativeRegistry.RegisterFromAssembly(typeof(ObjectIR.Stdlib.System.IO).Assembly);
 
             CPU mainCpu = new();
+            mainCpu.Scheduler = scheduler; // IMPORTANT: Required for SpawnThread to work!
             mainCpu.Debug = opts.Debug;
             mainCpu.LoadModule(RootModule);
             

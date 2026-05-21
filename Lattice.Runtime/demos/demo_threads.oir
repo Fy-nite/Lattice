@@ -1,0 +1,120 @@
+module DemoThreads version 1.0.0
+
+class Worker {
+    field id: int32
+
+    constructor(id: int32) {
+        ldarg this
+        ldarg id
+        stfld Worker.id
+        ret
+    }
+
+    method Run() -> void {
+        local i: int32
+        ldc.i4 0
+        stloc i
+            ldloc i
+            ldc.i4 5
+            clt
+
+        // Loop structure
+        //while (i < 5) {
+            // Load and check loop condition
+       
+
+            ldstr "Thread "
+            call IO.Println(object) -> void
+            
+            ldloc i
+            ldc.i4 1
+            add
+            stloc i
+            dup
+            call IO.Println(object) -> void
+            
+            
+
+            ldarg this
+
+            ldfld Worker.id
+            call IO.Print(object) -> void 
+            
+            ldstr ": Tick "
+            call IO.Print(object) -> void
+            
+            ldloc i
+            call IO.Println(object) -> void
+
+            ldc.i4 300
+            call Thread.Sleep(int32) -> void
+
+            ldloc i
+            ldc.i4 1
+            add
+            stloc i
+
+            
+        //}
+        
+        ldstr "Thread "
+        call IO.Print(object) -> void
+        ldarg this
+        ldfld Worker.id
+        call IO.Print(object) -> void
+        ldstr " finished.\n"
+        call IO.Print(object) -> void
+        ret
+    }
+}
+
+class Program {
+    static method Main() -> void {
+        local w1: Worker
+        local w2: Worker
+        local a1: Action
+        local a2: Action
+
+        ldstr "Main: Initializing parallel demo...\n"
+        call IO.Print(object) -> void
+
+        // Create two worker instances with different IDs
+        ldc.i4 101
+        newobj Worker.constructor(int32)
+        stloc w1
+
+        ldc.i4 202
+        newobj Worker.constructor(int32)
+        stloc w2
+
+        // Wrap the 'Run' method of each worker in an Action delegate
+        // Note: The constructor captures the instance (w1/w2) and the method name
+        ldloc w1
+        ldstr "Run"
+        newobj Action.constructor(object, string)
+        stloc a1
+
+        ldloc w2
+        ldstr "Run"
+        newobj Action.constructor(object, string)
+        stloc a2
+
+        // Spawn independent threads for each action
+        ldloc a1
+        call Thread.Spawn(IDelagate) -> void
+
+        ldloc a2
+        call Thread.Spawn(IDelagate) -> void
+
+        ldstr "Main: Both threads spawned. Main thread waiting...\n"
+        call IO.Print(object) -> void
+        
+        // Wait long enough for workers to finish
+        ldc.i4 2500
+        call Thread.Sleep(int32) -> void
+        
+        ldstr "Main: Demo completed successfully.\n"
+        call IO.Print(object) -> void
+        ret
+    }
+}

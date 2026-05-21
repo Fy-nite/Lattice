@@ -15,48 +15,38 @@ namespace lattice.Runtime
         {
             lock (_lock)
             {
+                // Console.WriteLine($"[SCHEDULER] Adding thread, count is now {_threads.Count + 1}");
                 _threads.Add(cpu);
+                
+                // Spawn a dedicated native thread for this CPU
+                Thread t = new Thread(() => {
+                    while (cpu.Step())
+                    {
+                        // Small sleep to prevent 100% CPU usage
+                        Thread.Sleep(1);
+                    }
+                    // Console.WriteLine("[SCHEDULER] Thread finished.");
+                    lock (_lock)
+                    {
+                        _threads.Remove(cpu);
+                    }
+                });
+                t.IsBackground = true;
+                t.Start();
             }
         }
 
         public void Run()
         {
+            // Console.WriteLine("[SCHEDULER] Starting...");
+            // The scheduler now just waits for all threads to finish
             while (true)
             {
-                List<CPU> toStep;
                 lock (_lock)
                 {
                     if (_threads.Count == 0) break;
-                    toStep = _threads.ToList();
                 }
-
-                foreach (var cpu in toStep)
-                {
-                    try
-                    {
-                        bool canContinue = cpu.Step();
-                        if (!canContinue)
-                        {
-                            lock (_lock)
-                            {
-                                _threads.Remove(cpu);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        Console.WriteLine($"[SCHEDULER ERROR] Thread crashed: {ex.Message}");
-                        Console.ResetColor();
-                        lock (_lock)
-                        {
-                            _threads.Remove(cpu);
-                        }
-                    }
-                }
-
-                // Small sleep to prevent 100% CPU usage if all threads are yielding/waiting
-                Thread.Sleep(1);
+                Thread.Sleep(100);
             }
         }
     }

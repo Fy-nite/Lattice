@@ -5,24 +5,88 @@ using lattice.Throwables;
 using Microsoft.VisualBasic.CompilerServices;
 using ObjectIR.Core;
 using ObjectIR.Core.AST;
+using ObjectIR.StdLib.Core.Generics;
 using ObjectIR.StdLib.Core.Memory;
 
 public class CPU : IProgramLoader
 {
     public lattice.Runtime.Scheduler Scheduler { get; set; }
     public List<ModuleNode> Modules = new();
-    // ... rest of fields ...
 
-    // IProgramLoader Implementation
-    // ...
+    public ModuleNode program;
+
+    public CallStack CurrentFrame;
+
+    public bool Debug { get; set; }
+
+    private lattice.Runtime.Debugging.Debugger _debugger = new lattice.Runtime.Debugging.Debugger();
+
+    public int MaxStackDepth { get; set; }
+
+    // --- IProgramLoader Implementation ---
+
+    ModuleNode? IProgramLoader.MainModule => program;
+
+    MethodNode? IProgramLoader.GetCurrentMethod() => CurrentFrame?.Method;
+
+    object? IProgramLoader.GetCurrentThis() => CurrentFrame?.This;
+    void IProgramLoader.Yield(int milliseconds)
+    {
+        System.Threading.Thread.Sleep(milliseconds);
+    }
+    Value<object> IProgramLoader.ExecuteMethod(MethodReference method, object? thisObj, params object[] args)
+    {
+        MethodNode node = ResolveMethod(method);
+        if (node == null) throw new MethodResolutionException(method.Name, CurrentFrame?.GetStackTrace());
+
+        ExecuteMethod(node, thisObj as ManagedObject, args);
+        
+        if (Operators.CompareString(node.ReturnType.Name, "void", false) != 0 && CurrentFrame?.EvaluationStack.Count > 0)
+        {
+            var result = CurrentFrame.EvaluationStack.Pop();
+            return (result as Value<object>) ?? new Value<object>(result);
+        }
+
+        return new Value<object>(null);
+    }
+
+    ClassNode? IProgramLoader.ResolveType(TypeRef typeRef)
+    {
+        if (program == null) return null;
+
+        // 1. Search in main program module
+        var cls = program.Classes.FirstOrDefault(c => Operators.CompareString(c.Name, typeRef.Name, false) == 0);
+        if (cls != null) return cls;
+
+        // 2. Search in other loaded modules
+        foreach (var mod in Modules)
+        {
+            cls = mod.Classes.FirstOrDefault(c => Operators.CompareString(c.Name, typeRef.Name, false) == 0);
+            if (cls != null) return cls;
+        }
+
+        // 3. Try to resolve via dynamic hooks if not found
+        if (NativeRegistry.TryRegister(typeRef.Name, program))
+        {
+            return program.Classes.FirstOrDefault(c => Operators.CompareString(c.Name, typeRef.Name, false) == 0);
+        }
+
+        return null;
+    }
+
     void IProgramLoader.SpawnThread(IDelagate entryPoint)
     {
-        if (Scheduler == null) return;
+        if (Scheduler == null) {
+            Console.WriteLine("[CPU] SpawnThread failed: Scheduler is null!");
+            return;
+        }
+        if (Debug)
+            Console.WriteLine($"[CPU] Spawning thread on CPU instance {this.GetHashCode()}");
         
         var newCpu = new CPU
         {
             program = this.program,
-            Modules = this.Modules,
+            Modules = new List<ModuleNode>(this.Modules), // Share loaded modules
             Debug = this.Debug,
             MaxStackDepth = this.MaxStackDepth,
             Scheduler = this.Scheduler
@@ -32,10 +96,20 @@ public class CPU : IProgramLoader
         MethodNode method = ResolveMethod(entryPoint.Method);
         if (method != null)
         {
-            newCpu.PushFrame(method);
+            // Use the Target from the delegate as the 'this' pointer
+            ManagedObject targetObj = entryPoint.Target as ManagedObject;
+            newCpu.PushFrame(method, targetObj);
             Scheduler.AddThread(newCpu);
         }
+        else {
+            Console.WriteLine($"[CPU] Failed to resolve method {entryPoint.Method.Name}");
+        }
     }
+    // --- End IProgramLoader Implementation ---
+
+    
+
+    // --- End IProgramLoader Implementation ---
 
     public CPU()
     {
@@ -135,14 +209,15 @@ public class CPU : IProgramLoader
 
     public void ExecuteMethod(MethodNode method, ManagedObject thisObj = null, object[] providedArgs = null)
     {
-        if (Debug)
+        if (Debug == true) // Temporarily force logging
         {
-            Console.WriteLine($"[DEBUG] Executing method: {method.Name}");
+            Console.WriteLine($"[CPU] Executing method: {method.Name} on {thisObj?.TypeName ?? "static"}");
         }
         int argCount = method.Parameters.Count;
         checked
         {
             object[] poppedArgs = new object[argCount];
+            // ... (rest of the logic for popping args)
             if (providedArgs != null)
             {
                 int num = Math.Min(providedArgs.Length, argCount) - 1;
@@ -162,39 +237,42 @@ public class CPU : IProgramLoader
             
             if (method.NativeImpl != null)
             {
-                if (Debug)
+                if (Debug == true)
                 {
-                    Console.WriteLine($"[DEBUG] Calling native method: {method.Name}");
-                }
-                Value<object>[] nativeArgs = new Value<object>[argCount];
-                int num3 = argCount - 1;
-                for (int k = 0; k <= num3; k++)
-                {
-                    object popped = RuntimeHelpers.GetObjectValue(poppedArgs[k]);
-                    if (Debug)
-                    {
-                        Console.WriteLine($"[DEBUG]   Arg {k}: {RuntimeHelpers.GetObjectValue(popped)}");
-                    }
-                    if (popped is Value<object>)
-                    {
-                        nativeArgs[k] = (Value<object>)popped;
-                    }
-                    else
-                    {
-                        nativeArgs[k] = new Value<object>(RuntimeHelpers.GetObjectValue(popped));
-                    }
+                    Console.WriteLine($"[CPU] Calling native method: {method.Name}");
                 }
 
-                // Native calls also need context
-                Value<object> result;
-                using (ProgramLoader.Activate(this))
-                {
-                    result = method.NativeImpl.Method(nativeArgs);
-                }
+                // Push a temporary frame to provide context (like 'this') for the native call
+                PushFrame(method, thisObj);
 
-                if (Operators.CompareString(method.ReturnType.Name, "void", TextCompare: false) != 0 && result != null && CurrentFrame != null)
+                try 
                 {
-                    CurrentFrame.EvaluationStack.Push(result);
+                    Value<object>[] nativeArgs = new Value<object>[argCount];
+                    int num3 = argCount - 1;
+                    for (int k = 0; k <= num3; k++)
+                    {
+                        object popped = RuntimeHelpers.GetObjectValue(poppedArgs[k]);
+                        // Always unwrap so the native method gets the raw data in Value<object>.Data
+                        object rawData = Unwrap(popped);
+                        nativeArgs[k] = new Value<object>(rawData);
+                    }
+
+                    // Native calls also need context
+                    Value<object> result;
+                    using (ProgramLoader.Activate(this))
+                    {
+                        result = method.NativeImpl.Method(nativeArgs);
+                    }
+
+                    if (Operators.CompareString(method.ReturnType.Name, "void", TextCompare: false) != 0 && result != null && CurrentFrame.Previous != null)
+                    {
+                        CurrentFrame.Previous.EvaluationStack.Push(result);
+                    }
+                }
+                finally 
+                {
+                    // Pop the temporary frame
+                    CurrentFrame = CurrentFrame.Previous;
                 }
                 return;
             }
@@ -261,6 +339,9 @@ public class CPU : IProgramLoader
                             {
                                 str = str.Substring(1, checked(str.Length - 2));
                             }
+                            // Handle escape sequences
+                            str = str.Replace("\\n", "\n").Replace("\\t", "\t").Replace("\\r", "\r");
+                            
                             CurrentFrame.EvaluationStack.Push(new Value<string>(str));
                             break;
                         }
@@ -317,31 +398,59 @@ public class CPU : IProgramLoader
                         CurrentFrame.EvaluationStack.Pop();
                         break;
 
+                    case "ldfld":
+                        {
+                            var instance = CurrentFrame.EvaluationStack.Pop() as ManagedObject;
+                            if (instance == null) throw new RuntimeException("ldfld requires a managed object instance on stack", CurrentFrame.GetStackTrace());
+                            
+                            string fieldName = simple.Operand!;
+                            if (fieldName.Contains(".")) fieldName = fieldName.Split('.')[1];
+                            
+                            CurrentFrame.EvaluationStack.Push(instance.GetField(fieldName));
+                            break;
+                        }
+
+                    case "stfld":
+                        {
+                            var value = CurrentFrame.EvaluationStack.Pop();
+                            var instance = CurrentFrame.EvaluationStack.Pop() as ManagedObject;
+                            if (instance == null) throw new RuntimeException("stfld requires a managed object instance on stack", CurrentFrame.GetStackTrace());
+                            
+                            string fieldName = simple.Operand!;
+                            if (fieldName.Contains(".")) fieldName = fieldName.Split('.')[1];
+                            
+                            instance.SetField(fieldName, value);
+                            break;
+                        }
+
                     case "ret":
                         CurrentFrame.IP = CurrentFrame.Method.Body.Statements.Count;
                         break;
 
                     case "add":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("add requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) + Convert.ToInt32(Unwrap(b))));
                             break;
                         }
                     case "sub":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("sub requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) - Convert.ToInt32(Unwrap(b))));
                             break;
                         }
                     case "mul":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("mul requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) * Convert.ToInt32(Unwrap(b))));
                             break;
                         }
                     case "div":
                         {
-
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("div requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) / Convert.ToInt32(Unwrap(b))));
                             break;
@@ -349,36 +458,42 @@ public class CPU : IProgramLoader
                     
                     case "ceq":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("ceq requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(Equals(Unwrap(a), Unwrap(b))));
                             break;
                         }
                     case "cne":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cne requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(!Equals(Unwrap(a), Unwrap(b))));
                             break;
                         }
                     case "cgt":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cgt requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(Compare(Unwrap(a), Unwrap(b)) > 0));
                             break;
                         }
                     case "clt":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("clt requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(Compare(Unwrap(a), Unwrap(b)) < 0));
                             break;
                         }
                     case "cgt.un":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cgt.un requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(CompareUnsigned(Unwrap(a), Unwrap(b)) > 0));
                             break;
                         }
                     case "cge.un":
                         {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cge.un requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(CompareUnsigned(Unwrap(a), Unwrap(b)) >= 0));
                             break;
@@ -415,17 +530,26 @@ public class CPU : IProgramLoader
                 NewObjInstruction newObj = (NewObjInstruction)instr;
                 try
                 {
+                    // 1. Allocate the managed object
+                    ManagedObject instance = new ManagedObject(newObj.Type.Name);
                     
-                MethodNode ctor = ResolveMethod(newObj.Constructor);
-                if ((object)ctor == null)
-                {
-                    throw new MethodResolutionException(newObj.Constructor.Name, CurrentFrame.GetStackTrace());
-                }
-                ExecuteMethod(ctor);
+                    // 2. Resolve and execute constructor if specified
+                    if (newObj.Constructor != null)
+                    {
+                        var ctor = ResolveMethod(newObj.Constructor);
+                        if ((object)ctor == null)
+                        {
+                            throw new MethodResolutionException(newObj.Constructor.Name, CurrentFrame.GetStackTrace());
+                        }
+                        ExecuteMethod(ctor, instance);
+                    }
+                    
+                    // 3. Push the new instance onto the evaluation stack
+                    CurrentFrame.EvaluationStack.Push(instance);
                 }
                 catch (Exception ex)
                 {
-                    throw new RuntimeException($"Failed to create object for type {newObj}: {ex.Message}", CurrentFrame.GetStackTrace());
+                    throw new RuntimeException($"Failed to create object for type {newObj.Type.Name}: {ex.Message}", CurrentFrame.GetStackTrace());
                 }
             }
         }
@@ -444,9 +568,43 @@ public class CPU : IProgramLoader
         else if (ins is WhileStatement)
         {
             WhileStatement whileStmt = (WhileStatement)ins;
-            while (EvaluateCondition(whileStmt.Condition, whileStmt.Location))
+            // The OIR "while (stack) { ... }" structure implies the condition is evaluated
+            // *before* the loop body. 
+            
+            // 1. Identify start of condition instructions
+            int conditionStartIP = CurrentFrame.IP - 1;
+            var currentLine = whileStmt.Location?.Line;
+            if (currentLine.HasValue)
             {
+                while (conditionStartIP >= 0)
+                {
+                    var prevIns = CurrentFrame.Method.Body.Statements[conditionStartIP];
+                    if (prevIns.Location?.Line != currentLine) break;
+                    conditionStartIP--;
+                }
+            }
+            // conditionStartIP is now the index of the first condition instruction
+
+            // 2. Evaluate the condition (only if stack is not empty)
+            if (CurrentFrame.EvaluationStack.Count > 0 && EvaluateCondition(whileStmt.Condition, whileStmt.Location))
+            {
+                // Execute the body
                 ExecuteBlock(whileStmt.Body);
+                
+                // Rewind IP to the start of the condition so it gets re-executed
+                CurrentFrame.IP = conditionStartIP - 1; 
+            }
+            else
+            {
+                // Loop ended, clean up condition results if necessary.
+                // If the loop finished naturally, the condition result is popped by EvaluateCondition.
+                // If we fall through, we might need to pop it if it was evaluated just now.
+                if (CurrentFrame.EvaluationStack.Count > 0)
+                {
+                    // This is a safety check: if we're here, the condition evaluated to false.
+                    // We might need to pop the condition result.
+                    // CurrentFrame.EvaluationStack.Pop(); 
+                }
             }
         }
         else if (ins is SwitchStatement)
@@ -557,12 +715,33 @@ public class CPU : IProgramLoader
 
     private MethodNode ResolveLocalMethod(MethodReference target)
     {
-        foreach (ClassNode cls in program.Classes)
+        // 1. Search in main program module
+        var node = ResolveInModule(program, target);
+        if (node != null) return node;
+
+        // 2. Search in other loaded modules
+        foreach (var mod in Modules)
+        {
+            node = ResolveInModule(mod, target);
+            if (node != null) return node;
+        }
+
+        return null;
+    }
+
+    private MethodNode ResolveInModule(ModuleNode mod, MethodReference target)
+    {
+        foreach (ClassNode cls in mod.Classes)
         {
             if (Operators.CompareString(cls.Name, target.DeclaringType.Name, TextCompare: false) != 0)
             {
                 continue;
             }
+            if (Debug)
+            // Log matching class
+                Console.WriteLine($"[CPU] Resolved class: {cls.Name}. Looking for method: {target.Name}");
+            
+            // Check methods
             foreach (MethodNode meth in cls.Methods)
             {
                 if (Operators.CompareString(meth.Name, target.Name, TextCompare: false) == 0)
@@ -570,10 +749,23 @@ public class CPU : IProgramLoader
                     return meth;
                 }
             }
+            
+            // Check constructors
+            if (Operators.CompareString(target.Name, "constructor", TextCompare: false) == 0 || 
+                Operators.CompareString(target.Name, ".ctor", TextCompare: false) == 0)
+            {
+                // Find constructor with matching parameter count
+                var ctor = cls.Constructors.FirstOrDefault();
+                
+                if (ctor != null)
+                {
+                    // Synthesize a MethodNode so ExecuteMethod can handle it
+                    return new MethodNode("constructor", ctor.Parameters, TypeRef.Void, false, null, ctor.Body);
+                }
+            }
         }
         return null;
     }
-
     private (object? a, object? b) PopTwo()
     {
         var b = CurrentFrame!.EvaluationStack.Pop();
