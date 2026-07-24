@@ -1,18 +1,19 @@
 using System.Runtime.CompilerServices;
-using lattice.Connectors;
 using lattice.Core;
 using lattice.Throwables;
-using Microsoft.VisualBasic.CompilerServices;
 using ObjectIR.Core;
 using ObjectIR.Core.AST;
 using ObjectIR.Core.Ast;
 using ObjectIR.StdLib.Core.Generics;
 using ObjectIR.StdLib.Core.Memory;
+using lattice.Runtime.Compiler;
 
 public class CPU : IProgramLoader
 {
     public lattice.Runtime.Scheduler Scheduler { get; set; }
     public List<ModuleNode> Modules = new();
+    private Dictionary<MethodNode, CompiledMethod> _compiled = new();
+    private Dictionary<MethodNode, JittedMethod> _jitted = new();
 
     public ModuleNode program;
 
@@ -42,7 +43,7 @@ public class CPU : IProgramLoader
 
         ExecuteMethod(node, thisObj as ManagedObject, args);
         
-        if (Operators.CompareString(node.ReturnType.Name, "void", false) != 0 && CurrentFrame?.EvaluationStack.Count > 0)
+        if (!string.Equals(node.ReturnType.Name, "void", StringComparison.Ordinal) && CurrentFrame?.EvaluationStack.Count > 0)
         {
             var result = CurrentFrame.EvaluationStack.Pop();
             return (result as Value<object>) ?? new Value<object>(result);
@@ -56,20 +57,20 @@ public class CPU : IProgramLoader
         if (program == null) return null;
 
         // 1. Search in main program module
-        var cls = program.Classes.FirstOrDefault(c => Operators.CompareString(c.Name, typeRef.Name, false) == 0);
+        var cls = program.Classes.FirstOrDefault(c => string.Equals(c.Name, typeRef.Name, StringComparison.Ordinal));
         if (cls != null) return cls;
 
         // 2. Search in other loaded modules
         foreach (var mod in Modules)
         {
-            cls = mod.Classes.FirstOrDefault(c => Operators.CompareString(c.Name, typeRef.Name, false) == 0);
+            cls = mod.Classes.FirstOrDefault(c => string.Equals(c.Name, typeRef.Name, StringComparison.Ordinal));
             if (cls != null) return cls;
         }
 
         // 3. Try to resolve via dynamic hooks if not found
         if (NativeRegistry.TryRegister(typeRef.Name, program))
         {
-            return program.Classes.FirstOrDefault(c => Operators.CompareString(c.Name, typeRef.Name, false) == 0);
+            return program.Classes.FirstOrDefault(c => string.Equals(c.Name, typeRef.Name, StringComparison.Ordinal));
         }
 
         return null;
@@ -120,11 +121,11 @@ public class CPU : IProgramLoader
 
     public void InitializeMain(string[] args)
     {
-        ClassNode programClass = program.Classes.FirstOrDefault([SpecialName] (ClassNode c) => Operators.CompareString(c.Name, "Program", TextCompare: false) == 0);
+        ClassNode programClass = program.Classes.FirstOrDefault(c => string.Equals(c.Name, "Program", StringComparison.Ordinal));
         MethodNode main = null;
-        if ((object)programClass != null)
+        if (programClass != null)
         {
-            main = programClass.Methods.FirstOrDefault([SpecialName] (MethodNode m) => Operators.CompareString(m.Name, "Main", TextCompare: false) == 0);
+            main = programClass.Methods.FirstOrDefault(m => string.Equals(m.Name, "Main", StringComparison.Ordinal));
         }
         
         if ((object)main == null)
@@ -195,6 +196,7 @@ public class CPU : IProgramLoader
     public void LoadModule(ModuleNode Modz)
     {
         program = Modz;
+        CompileAll();
     }
 
 
@@ -265,7 +267,7 @@ public class CPU : IProgramLoader
                         result = method.NativeImpl.Method(nativeArgs);
                     }
 
-                    if (Operators.CompareString(method.ReturnType.Name, "void", TextCompare: false) != 0 && result != null && CurrentFrame.Previous != null)
+                    if (!string.Equals(method.ReturnType.Name, "void", StringComparison.Ordinal) && result != null && CurrentFrame.Previous != null)
                     {
                         CurrentFrame.Previous.EvaluationStack.Push(result);
                     }
@@ -424,6 +426,11 @@ public class CPU : IProgramLoader
                         }
 
                     case OpCode.Ret:
+                        if (CurrentFrame.Previous != null && !string.Equals(CurrentFrame.Method.ReturnType.Name, "void", StringComparison.Ordinal) && CurrentFrame.EvaluationStack.Count > 0)
+                        {
+                            var returnValue = CurrentFrame.EvaluationStack.Pop();
+                            CurrentFrame.Previous.EvaluationStack.Push(returnValue);
+                        }
                         CurrentFrame.IP = CurrentFrame.Method.Body.Statements.Count;
                         break;
 
@@ -431,28 +438,35 @@ public class CPU : IProgramLoader
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("add requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) + Convert.ToInt32(Unwrap(b))));
+                            CurrentFrame.EvaluationStack.Push(DoBinaryArith(a, b, (x, y) => x + y, (x, y) => x + y));
                             break;
                         }
                     case OpCode.Sub:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("sub requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) - Convert.ToInt32(Unwrap(b))));
+                            CurrentFrame.EvaluationStack.Push(DoBinaryArith(a, b, (x, y) => x - y, (x, y) => x - y));
                             break;
                         }
                     case OpCode.Mul:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("mul requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) * Convert.ToInt32(Unwrap(b))));
+                            CurrentFrame.EvaluationStack.Push(DoBinaryArith(a, b, (x, y) => x * y, (x, y) => x * y));
                             break;
                         }
-                    case OpCode.Div:
+                        case OpCode.Div:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("div requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
-                            CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) / Convert.ToInt32(Unwrap(b))));
+                            CurrentFrame.EvaluationStack.Push(DoBinaryArith(a, b, (x, y) => x / y, (x, y) => x / y));
+                            break;
+                        }
+                    case OpCode.Rem:
+                        {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("rem requires 2 elements on stack", CurrentFrame.GetStackTrace());
+                            var (a, b) = PopTwo();
+                            CurrentFrame.EvaluationStack.Push(DoBinaryArith(a, b, (x, y) => x % y, (x, y) => x % y));
                             break;
                         }
                     
@@ -591,8 +605,7 @@ public class CPU : IProgramLoader
                 // Execute the body
                 ExecuteBlock(whileStmt.Body);
                 
-                // Rewind IP to the start of the condition so it gets re-executed
-                CurrentFrame.IP = conditionStartIP - 1; 
+                CurrentFrame.IP = conditionStartIP;
             }
             else
             {
@@ -644,7 +657,7 @@ public class CPU : IProgramLoader
 
     private object EvaluateExpression(string expression)
     {
-        if (Operators.CompareString(expression, "stack", TextCompare: false) == 0)
+        if (string.Equals(expression, "stack", StringComparison.Ordinal))
         {
             if (CurrentFrame.EvaluationStack.Count == 0)
             {
@@ -674,7 +687,7 @@ public class CPU : IProgramLoader
 
     private bool EvaluateCondition(string condition, SourceLocation ins)
     {
-        if (Operators.CompareString(condition, "stack", TextCompare: false) == 0)
+        if (string.Equals(condition, "stack", StringComparison.Ordinal))
         {
             if (CurrentFrame.EvaluationStack.Count == 0)
             {
@@ -697,7 +710,7 @@ public class CPU : IProgramLoader
         return false;
     }
 
-    private MethodNode ResolveMethod(MethodReference target)
+    public MethodNode? ResolveMethod(MethodReference target)
     {
         // 1. Local resolution (already loaded in AST)
         var method = ResolveLocalMethod(target);
@@ -715,6 +728,12 @@ public class CPU : IProgramLoader
 
     private MethodNode ResolveLocalMethod(MethodReference target)
     {
+        // Handle "this" prefix: resolve against the current class context
+        if (string.Equals(target.DeclaringType.Name, "this", StringComparison.Ordinal))
+        {
+            return ResolveThisMethod(target);
+        }
+
         // 1. Search in main program module
         var node = ResolveInModule(program, target);
         if (node != null) return node;
@@ -729,11 +748,73 @@ public class CPU : IProgramLoader
         return null;
     }
 
+    private MethodNode? ResolveThisMethod(MethodReference target)
+    {
+        var currentMethod = CurrentFrame?.Method;
+        if (currentMethod != null)
+        {
+            // Find which class contains the current method and search there first
+            var cls = FindClassByMethod(currentMethod);
+            if (cls != null)
+            {
+                var node = FindMethodInClass(cls, target.Name);
+                if (node != null) return node;
+            }
+        }
+
+        // Fallback: search all classes in all modules by method name
+        foreach (var cls in program.Classes)
+        {
+            var node = FindMethodInClass(cls, target.Name);
+            if (node != null) return node;
+        }
+        foreach (var mod in Modules)
+        {
+            foreach (var cls in mod.Classes)
+            {
+                var node = FindMethodInClass(cls, target.Name);
+                if (node != null) return node;
+            }
+        }
+
+        return null;
+    }
+
+    private ClassNode? FindClassByMethod(MethodNode method)
+    {
+        foreach (var cls in program.Classes)
+        {
+            if (cls.Methods.Contains(method))
+                return cls;
+        }
+        foreach (var mod in Modules)
+        {
+            foreach (var cls in mod.Classes)
+            {
+                if (cls.Methods.Contains(method))
+                    return cls;
+            }
+        }
+        return null;
+    }
+
+    private MethodNode? FindMethodInClass(ClassNode cls, string methodName)
+    {
+        foreach (MethodNode meth in cls.Methods)
+        {
+            if (string.Equals(meth.Name, methodName, StringComparison.Ordinal))
+            {
+                return meth;
+            }
+        }
+        return null;
+    }
+
     private MethodNode ResolveInModule(ModuleNode mod, MethodReference target)
     {
         foreach (ClassNode cls in mod.Classes)
         {
-            if (Operators.CompareString(cls.Name, target.DeclaringType.Name, TextCompare: false) != 0)
+            if (!string.Equals(cls.Name, target.DeclaringType.Name, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -744,15 +825,15 @@ public class CPU : IProgramLoader
             // Check methods
             foreach (MethodNode meth in cls.Methods)
             {
-                if (Operators.CompareString(meth.Name, target.Name, TextCompare: false) == 0)
+                if (string.Equals(meth.Name, target.Name, StringComparison.Ordinal))
                 {
                     return meth;
                 }
             }
             
             // Check constructors
-            if (Operators.CompareString(target.Name, "constructor", TextCompare: false) == 0 || 
-                Operators.CompareString(target.Name, ".ctor", TextCompare: false) == 0)
+            if (string.Equals(target.Name, "constructor", StringComparison.Ordinal) || 
+                string.Equals(target.Name, ".ctor", StringComparison.Ordinal))
             {
                 // Find constructor with matching parameter count
                 var ctor = cls.Constructors.FirstOrDefault();
@@ -771,6 +852,17 @@ public class CPU : IProgramLoader
         var b = CurrentFrame!.EvaluationStack.Pop();
         var a = CurrentFrame!.EvaluationStack.Pop();
         return (a, b);
+    }
+
+    private static object DoBinaryArith(object? a, object? b, Func<int, int, int> intOp, Func<double, double, double> floatOp)
+    {
+        var ua = Unwrap(a);
+        var ub = Unwrap(b);
+        if (ua is float || ua is double || ub is float || ub is double)
+        {
+            return new Value<double>(floatOp(Convert.ToDouble(ua), Convert.ToDouble(ub)));
+        }
+        return new Value<int>(intOp(Convert.ToInt32(ua), Convert.ToInt32(ub)));
     }
 
     private static object? Unwrap(object? val)
@@ -807,5 +899,109 @@ public class CPU : IProgramLoader
 
         if (a is IComparable ca) return ca.CompareTo(b);
         return 0;
+    }
+
+    public void CompileAll()
+    {
+        foreach (var cls in program.Classes)
+        {
+            foreach (var method in cls.Methods)
+            {
+                if (!_compiled.ContainsKey(method) && method.Body?.Statements.Count > 0)
+                {
+                    var cm = BytecodeCompiler.Compile(method);
+                    _compiled[method] = cm;
+                    var jit = JitCompiler.GetOrCompile(cm);
+                    if (jit != null)
+                        _jitted[method] = jit;
+                }
+            }
+            foreach (var ctor in cls.Constructors)
+            {
+                // Constructors not compiled yet
+            }
+        }
+    }
+
+    public CompiledMethod? GetCompiled(MethodNode method)
+    {
+        _compiled.TryGetValue(method, out var cm);
+        return cm;
+    }
+
+    public T CallMethod<T>(string methodPath, params object[] args)
+    {
+        var parts = methodPath.Split('.');
+        if (parts.Length < 2)
+            throw new ArgumentException($"Expected 'ClassName.MethodName', got '{methodPath}'");
+
+        string className = parts[parts.Length - 2];
+        string methodName = parts[parts.Length - 1];
+
+        var cls = FindClass(className);
+        if (cls == null)
+            throw new MethodResolutionException(methodPath, CurrentFrame?.GetStackTrace() ?? "");
+
+        var method = cls.Methods.FirstOrDefault(m => string.Equals(m.Name, methodName, StringComparison.Ordinal));
+        if (method == null)
+            throw new MethodResolutionException(methodPath, CurrentFrame?.GetStackTrace() ?? "");
+
+        // Try compiled path (JIT disabled pending runtime verification fixes)
+        if (_compiled.TryGetValue(method, out var cm))
+        {
+            var rawArgs = new StackValue[method.Parameters.Count];
+            for (int i = 0; i < rawArgs.Length; i++)
+                rawArgs[i] = i < args.Length
+                    ? CompiledExecutor.RawToStackValue(args[i])
+                    : default;
+
+            var compiledResult = CompiledExecutor.Execute(cm, rawArgs, this);
+
+            if (cm.ReturnsValue)
+            {
+                var unwrapped = compiledResult.ToObject();
+                if (unwrapped != null && typeof(T) != unwrapped.GetType())
+                    return (T)Convert.ChangeType(unwrapped, typeof(T));
+                return (T)(unwrapped ?? default(T?)!);
+            }
+            return default;
+        }
+
+        // Fallback to AST path
+        bool hadFrame = CurrentFrame != null;
+        if (!hadFrame)
+            CurrentFrame = new CallStack(method, null);
+
+        ExecuteMethod(method, null, args);
+
+        T result = default;
+        if (CurrentFrame?.EvaluationStack.Count > 0)
+        {
+            var val = CurrentFrame.EvaluationStack.Pop();
+            var unwrapped = Unwrap(val);
+            if (unwrapped != null && typeof(T) != unwrapped.GetType())
+                result = (T)Convert.ChangeType(unwrapped, typeof(T));
+            else
+                result = (T)(unwrapped ?? default(T?)!);
+        }
+
+        if (!hadFrame)
+            CurrentFrame = null;
+
+        return result;
+    }
+
+    private ClassNode? FindClass(string className)
+    {
+        var cls = program.Classes.FirstOrDefault(c => string.Equals(c.Name, className, StringComparison.Ordinal));
+        if (cls != null) return cls;
+
+        foreach (var mod in Modules)
+        {
+            cls = mod.Classes.FirstOrDefault(c => string.Equals(c.Name, className, StringComparison.Ordinal));
+            if (cls != null) return cls;
+        }
+
+        return null;
     }
 }

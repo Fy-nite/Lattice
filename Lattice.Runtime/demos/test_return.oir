@@ -1,0 +1,14 @@
+module TestReturn version 1.0.0
+
+class Program {
+    static method GetValue() -> int32 {
+        ldc.i4 42
+        ret
+    }
+
+    static method Main() -> void {
+        call Program.GetValue() -> int32
+        call IO.Println(object) -> void
+        ret
+    }
+}

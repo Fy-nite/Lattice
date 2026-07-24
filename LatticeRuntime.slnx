@@ -10,7 +10,6 @@
         <File Path="LICENCE" />
         <File Path="README.md" />
     </Folder>
-    <Project Path="lattice.core\lattice.core.vbproj" Id="7de3dd13-f329-4807-bda0-64d797d12f65" />
     <Project Path="Lattice.Runtime/Lattice.Runtime.csproj" />
-    <Project Path="ObjectIR.Everything.Tests/Lattice.ObjectIR.Tests.csproj" Id="a77e2127-507f-43c8-b8bd-82fc10410021" />
+    <Project Path="Lattice.Runtime.Tests/Lattice.Runtime.Tests.csproj" />
 </Solution>

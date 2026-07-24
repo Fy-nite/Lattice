@@ -6,48 +6,38 @@ using ObjectIR.Core.AST;
 
 namespace lattice.Runtime
 {
-    public class Scheduler
+public class Scheduler
+{
+    private readonly List<CPU> _threads = new List<CPU>();
+    private readonly object _lock = new object();
+    private readonly AutoResetEvent _threadEvent = new AutoResetEvent(false);
+
+    public void AddThread(CPU cpu)
     {
-        private readonly List<CPU> _threads = new List<CPU>();
-        private readonly object _lock = new object();
-
-        public void AddThread(CPU cpu)
+        lock (_lock)
         {
-            lock (_lock)
-            {
-                // Console.WriteLine($"[SCHEDULER] Adding thread, count is now {_threads.Count + 1}");
-                _threads.Add(cpu);
-                
-                // Spawn a dedicated native thread for this CPU
-                Thread t = new Thread(() => {
-                    while (cpu.Step())
-                    {
-                        // Small sleep to prevent 100% CPU usage
-                        Thread.Sleep(1);
-                    }
-                    // Console.WriteLine("[SCHEDULER] Thread finished.");
-                    lock (_lock)
-                    {
-                        _threads.Remove(cpu);
-                    }
-                });
-                t.IsBackground = true;
-                t.Start();
-            }
-        }
-
-        public void Run()
-        {
-            // Console.WriteLine("[SCHEDULER] Starting...");
-            // The scheduler now just waits for all threads to finish
-            while (true)
-            {
+            _threads.Add(cpu);
+            
+            Thread t = new Thread(() => {
+                while (cpu.Step())
+                {
+                    Thread.Yield();
+                }
                 lock (_lock)
                 {
-                    if (_threads.Count == 0) break;
+                    _threads.Remove(cpu);
+                    if (_threads.Count == 0)
+                        _threadEvent.Set();
                 }
-                Thread.Sleep(100);
-            }
+            });
+            t.IsBackground = true;
+            t.Start();
         }
     }
+
+    public void Run()
+    {
+        _threadEvent.WaitOne();
+    }
+}
 }

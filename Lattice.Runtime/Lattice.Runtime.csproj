@@ -11,11 +11,13 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\lattice.core\lattice.core.vbproj" />
+      <PackageReference Include="CommandLineParser" Version="2.9.1" />
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="CommandLineParser" Version="2.9.1" />
+      <ProjectReference Include="..\libs\ObjectIR.Stdlib\Libs\ObjectIR.Core\ObjectIR.Core.csproj" />
+      <ProjectReference Include="..\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj" />
+      <ProjectReference Include="..\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj" />
     </ItemGroup>
 
 </Project>

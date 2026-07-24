@@ -1,0 +1,28 @@
+module TestRecursion version 1.0.0
+
+class Program {
+    static method Factorial(n: int32) -> int32 {
+        local result: int32
+        ldarg n
+        ldc.i4 1
+        cgt
+        if (stack) {
+            ldarg n
+            ldarg n
+            ldc.i4 1
+            sub
+            call Program.Factorial(int32) -> int32
+            mul
+            ret
+        }
+        ldc.i4 1
+        ret
+    }
+
+    static method Main() -> void {
+        ldc.i4 5
+        call Program.Factorial(int32) -> int32
+        call IO.Println(object) -> void
+        ret
+    }
+}

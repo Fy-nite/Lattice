@@ -1,0 +1,197 @@
+module ComprehensiveTest version 1.0.0
+
+class Program {
+    static method Add(a: float32, b: float32) -> float32 {
+        ldarg a
+        ldarg b
+        add
+        ret
+    }
+
+    static method Factorial(n: int32) -> int32 {
+        ldarg n
+        ldc.i4 1
+        cgt
+        if (stack) {
+            ldarg n
+            ldarg n
+            ldc.i4 1
+            sub
+            call Program.Factorial(int32) -> int32
+            mul
+            ret
+        }
+        ldc.i4 1
+        ret
+    }
+
+    static method Fibonacci(n: int32) -> int32 {
+        ldarg n
+        ldc.i4 2
+        clt
+        if (stack) {
+            ldarg n
+            ret
+        }
+        ldarg n
+        ldc.i4 1
+        sub
+        call Program.Fibonacci(int32) -> int32
+        ldarg n
+        ldc.i4 2
+        sub
+        call Program.Fibonacci(int32) -> int32
+        add
+        ret
+    }
+
+    static method SumRange(n: int32) -> int32 {
+        local i: int32
+        local sum: int32
+        ldc.i4 0
+        stloc i
+        ldc.i4 0
+        stloc sum
+
+        ldloc i
+        ldarg n
+        clt
+        while (stack) {
+            ldloc i
+            ldc.i4 1
+            add
+            stloc i
+
+            ldloc sum
+            ldloc i
+            add
+            stloc sum
+
+            ldloc i
+            ldarg n
+            clt
+        }
+        ldloc sum
+        ret
+    }
+
+    static method Main() -> void {
+        ldstr "=== Comprehensive Lattice Test ==="
+        call IO.Println(object) -> void
+
+        ldstr "--- Float arithmetic: 3.5 + 2.5 ="
+        call IO.Println(object) -> void
+        ldc.r4 3.5
+        ldc.r4 2.5
+        call Program.Add(float32, float32) -> float32
+        call IO.Println(object) -> void
+
+        ldstr "--- Integer arithmetic: 7 * 8 ="
+        call IO.Println(object) -> void
+        ldc.i4 7
+        ldc.i4 8
+        mul
+        call IO.Println(object) -> void
+
+        ldstr "--- Div: 100 / 3 ="
+        call IO.Println(object) -> void
+        ldc.i4 100
+        ldc.i4 3
+        div
+        call IO.Println(object) -> void
+
+        ldstr "--- Sub: 50 - 17 ="
+        call IO.Println(object) -> void
+        ldc.i4 50
+        ldc.i4 17
+        sub
+        call IO.Println(object) -> void
+
+        ldstr "--- Comparison: 5 > 3 ?"
+        call IO.Println(object) -> void
+        ldc.i4 5
+        ldc.i4 3
+        cgt
+        call IO.Println(object) -> void
+
+        ldstr "--- Factorial(5) ="
+        call IO.Println(object) -> void
+        ldc.i4 5
+        call Program.Factorial(int32) -> int32
+        call IO.Println(object) -> void
+
+        ldstr "--- Factorial(10) ="
+        call IO.Println(object) -> void
+        ldc.i4 10
+        call Program.Factorial(int32) -> int32
+        call IO.Println(object) -> void
+
+        ldstr "--- Fibonacci(10) ="
+        call IO.Println(object) -> void
+        ldc.i4 10
+        call Program.Fibonacci(int32) -> int32
+        call IO.Println(object) -> void
+
+        ldstr "--- SumRange(10) ="
+        call IO.Println(object) -> void
+        ldc.i4 10
+        call Program.SumRange(int32) -> int32
+        call IO.Println(object) -> void
+
+        ldstr "--- While loop counting to 5:"
+        call IO.Println(object) -> void
+        local i: int32
+        ldc.i4 0
+        stloc i
+        ldloc i
+        ldc.i4 5
+        clt
+        while (stack) {
+            ldloc i
+            call IO.Println(object) -> void
+            ldloc i
+            ldc.i4 1
+            add
+            stloc i
+            ldloc i
+            ldc.i4 5
+            clt
+        }
+
+        ldstr "--- Nested if/else: sign check"
+        call IO.Println(object) -> void
+        ldc.i4 -7
+        ldc.i4 0
+        clt
+        if (stack) {
+            ldstr "negative"
+            call IO.Println(object) -> void
+        }
+        else
+        {
+            ldc.i4 0
+            ldc.i4 0
+            cgt
+            if (stack) {
+                ldstr "positive"
+                call IO.Println(object) -> void
+            }
+            else
+            {
+                ldstr "zero"
+                call IO.Println(object) -> void
+            }
+        }
+
+        ldstr "--- Dup and Pop test:"
+        call IO.Println(object) -> void
+        ldc.i4 99
+        dup
+        call IO.Println(object) -> void
+        pop
+
+        ldstr "--- Test complete!"
+        call IO.Println(object) -> void
+        ret
+    }
+}

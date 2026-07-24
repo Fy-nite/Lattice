@@ -1,0 +1,11 @@
+module TestFloat version 1.0.0
+
+class Program {
+    static method Main() -> void {
+        ldc.r4 3.5
+        ldc.r4 2.5
+        mul
+        call IO.Println(object) -> void
+        ret
+    }
+}
