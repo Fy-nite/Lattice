@@ -1,4 +1,5 @@
 ﻿using ObjectIR.Core.AST;
+using ObjectIR.Core.Ast;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -8,10 +9,6 @@ namespace Lattice.ObjectIR.Tests
 {
     public class Helpers
     {
-        // -------------------------
-        // Helpers
-        // -------------------------
-
         public static ClassNode GetClass(ModuleNode module, string name)
             => Assert.Single(module.Classes.Where(x => x.Name == name));
 
@@ -25,21 +22,25 @@ namespace Lattice.ObjectIR.Tests
                 .ToList();
 
         public static SimpleInstruction? FindSimpleInstruction(
-    MethodNode method,
-    string opcode,
-    string? operand = null)
+            MethodNode method,
+            OpCode opcode,
+            string? operand = null)
         {
             return GetInstructions(method)
                 .OfType<SimpleInstruction>()
                 .FirstOrDefault(x =>
-                    string.Equals(
-                        x.OpCode,
-                        opcode,
-                        StringComparison.OrdinalIgnoreCase)
-                    &&
+                    x.OpCode == opcode &&
                     (operand == null || x.Operand == operand));
         }
 
+        public static SimpleInstruction? FindSimpleInstruction(
+            MethodNode method,
+            string opcode,
+            string? operand = null)
+        {
+            if (!OpCodeConverter.TryParse(opcode, out var oc)) return null;
+            return FindSimpleInstruction(method, oc, operand);
+        }
 
         public static CallInstruction? FindCall(
             MethodNode method,

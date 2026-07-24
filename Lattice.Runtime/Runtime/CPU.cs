@@ -5,6 +5,7 @@ using lattice.Throwables;
 using Microsoft.VisualBasic.CompilerServices;
 using ObjectIR.Core;
 using ObjectIR.Core.AST;
+using ObjectIR.Core.Ast;
 using ObjectIR.StdLib.Core.Generics;
 using ObjectIR.StdLib.Core.Memory;
 
@@ -330,38 +331,37 @@ public class CPU : IProgramLoader
             if (instr is SimpleInstruction)
             {
                 SimpleInstruction simple = (SimpleInstruction)instr;
-                switch (simple.OpCode.ToLower())
+                switch (simple.OpCode)
                 {
-                    case "ldstr":
+                    case OpCode.Ldstr:
                         {
                             string str = simple.Operand.ToString();
                             if (str.StartsWith("\"") && str.EndsWith("\""))
                             {
                                 str = str.Substring(1, checked(str.Length - 2));
                             }
-                            // Handle escape sequences
                             str = str.Replace("\\n", "\n").Replace("\\t", "\t").Replace("\\r", "\r");
                             
                             CurrentFrame.EvaluationStack.Push(new Value<string>(str));
                             break;
                         }
-                    case "ldc.i4":
+                    case OpCode.LdcI4:
                         CurrentFrame.EvaluationStack.Push(new Value<int>(int.Parse(simple.Operand!)));
                         break;
 
-                    case "ldc.r4":
+                    case OpCode.LdcR4:
                         CurrentFrame.EvaluationStack.Push(new Value<float>(float.Parse(simple.Operand!)));
                         break;
 
-                    case "ldnull":
+                    case OpCode.Ldnull:
                         CurrentFrame.EvaluationStack.Push(null);
                         break;
 
-                    case "ldloc":
+                    case OpCode.Ldloc:
                         CurrentFrame.EvaluationStack.Push(CurrentFrame.Locals[simple.Operand!]);
                         break;
 
-                    case "stloc":
+                    case OpCode.Stloc:
                         if (CurrentFrame.EvaluationStack.Count == 0)
                         {
                             var sz = ins.Location;
@@ -377,7 +377,7 @@ public class CPU : IProgramLoader
                         CurrentFrame.Locals[simple.Operand!] = CurrentFrame.EvaluationStack.Pop();
                         break;
 
-                    case "starg":
+                    case OpCode.Starg:
                         if (CurrentFrame.EvaluationStack.Count == 0)
                         {
                             var sx = ins.Location;
@@ -386,19 +386,19 @@ public class CPU : IProgramLoader
                         CurrentFrame.Args[simple.Operand!] = CurrentFrame.EvaluationStack.Pop();
                         break;
 
-                    case "ldarg":
+                    case OpCode.Ldarg:
                         CurrentFrame.EvaluationStack.Push(CurrentFrame.Args[simple.Operand!]);
                         break;
 
-                    case "dup":
+                    case OpCode.Dup:
                         CurrentFrame.EvaluationStack.Push(CurrentFrame.EvaluationStack.Peek());
                         break;
 
-                    case "pop":
+                    case OpCode.Pop:
                         CurrentFrame.EvaluationStack.Pop();
                         break;
 
-                    case "ldfld":
+                    case OpCode.Ldfld:
                         {
                             var instance = CurrentFrame.EvaluationStack.Pop() as ManagedObject;
                             if (instance == null) throw new RuntimeException("ldfld requires a managed object instance on stack", CurrentFrame.GetStackTrace());
@@ -410,7 +410,7 @@ public class CPU : IProgramLoader
                             break;
                         }
 
-                    case "stfld":
+                    case OpCode.Stfld:
                         {
                             var value = CurrentFrame.EvaluationStack.Pop();
                             var instance = CurrentFrame.EvaluationStack.Pop() as ManagedObject;
@@ -423,32 +423,32 @@ public class CPU : IProgramLoader
                             break;
                         }
 
-                    case "ret":
+                    case OpCode.Ret:
                         CurrentFrame.IP = CurrentFrame.Method.Body.Statements.Count;
                         break;
 
-                    case "add":
+                    case OpCode.Add:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("add requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) + Convert.ToInt32(Unwrap(b))));
                             break;
                         }
-                    case "sub":
+                    case OpCode.Sub:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("sub requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) - Convert.ToInt32(Unwrap(b))));
                             break;
                         }
-                    case "mul":
+                    case OpCode.Mul:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("mul requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(Unwrap(a)) * Convert.ToInt32(Unwrap(b))));
                             break;
                         }
-                    case "div":
+                    case OpCode.Div:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("div requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
@@ -456,49 +456,49 @@ public class CPU : IProgramLoader
                             break;
                         }
                     
-                    case "ceq":
+                    case OpCode.Ceq:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("ceq requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(Equals(Unwrap(a), Unwrap(b))));
                             break;
                         }
-                    case "cne":
+                    case OpCode.Cne:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cne requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(!Equals(Unwrap(a), Unwrap(b))));
                             break;
                         }
-                    case "cgt":
+                    case OpCode.Cgt:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cgt requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(Compare(Unwrap(a), Unwrap(b)) > 0));
                             break;
                         }
-                    case "clt":
+                    case OpCode.Clt:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("clt requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(Compare(Unwrap(a), Unwrap(b)) < 0));
                             break;
                         }
-                    case "cgt.un":
+                    case OpCode.CgtUn:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cgt.un requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(CompareUnsigned(Unwrap(a), Unwrap(b)) > 0));
                             break;
                         }
-                    case "cge.un":
+                    case OpCode.CgeUn:
                         {
                             if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cge.un requires 2 elements on stack", CurrentFrame.GetStackTrace());
                             var (a, b) = PopTwo();
                             CurrentFrame.EvaluationStack.Push(new Value<bool>(CompareUnsigned(Unwrap(a), Unwrap(b)) >= 0));
                             break;
                         }
-                    case "not":
+                    case OpCode.Not:
                         {
                             var a = CurrentFrame.EvaluationStack.Pop();
                             if (Unwrap(a) is bool boolVal)
@@ -509,7 +509,7 @@ public class CPU : IProgramLoader
                         }
 
                     default:
-                        throw new OpCodeNotFoundException(simple.OpCode, CurrentFrame.GetStackTrace());
+                        throw new OpCodeNotFoundException(OpCodeConverter.ToString(simple.OpCode), CurrentFrame.GetStackTrace());
                         //Console.WriteLine(simple.OpCode, CurrentFrame.GetStackTrace());
                         //break;
 

@@ -5,6 +5,9 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <PackageId>lattice</PackageId>
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>lattice</ToolCommandName>
     </PropertyGroup>
 
     <ItemGroup>

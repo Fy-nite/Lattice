@@ -1,4 +1,9 @@
-﻿'Imports System.IO
+﻿
+'''
+''' This file is kept for legacy purposes
+'''
+
+'Imports System.IO
 'Imports ObjectIR.Core.AST
 'Imports lattice.Core
 'Imports lattice.Core.Debugging
