@@ -1,11 +1,25 @@
-using System.Diagnostics;
-using System.Globalization;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Running;
 using lattice;
 using ObjectIR.Core.AST;
 
 namespace ObjectIR.Benchmark;
 
-public static class Program
+public class Program
+{
+    public static void Main(string[] args)
+    {
+        BenchmarkRunner.Run<LatticeBenchmarks>(args: args);
+    }
+}
+
+[MemoryDiagnoser]
+[GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
+[CategoriesColumn]
+[SimpleJob]
+public class LatticeBenchmarks
 {
     private const int SumN = 30_000;
     private const int BranchN = 100_000;
@@ -98,120 +112,107 @@ public static class Program
                 add
                 ret
             }
-
-            static method Five() -> int32 {
-                ldc.i4 5
-                ret
-            }
-
-            static method CallInsideIf() -> int32 {
-                local x: int32
-                ldc.i4 0
-                stloc x
-                ldloc x
-                ldc.i4 0
-                ceq
-                if (stack) {
-                    call Program.Five() -> int32
-                    stloc x
-                }
-                ldloc x
-                ret
-            }
         }
         """;
 
-    public static void Main()
+    private CPU _cpu = null!;
+    private MoonSharp.Interpreter.Script _luaScript = null!;
+    private MoonSharp.Interpreter.DynValue _luaSumFn = null!;
+    private MoonSharp.Interpreter.DynValue _luaBranchFn = null!;
+    private MoonSharp.Interpreter.DynValue _luaFibFn = null!;
+
+    [GlobalSetup]
+    public void GlobalSetup()
     {
-        Console.WriteLine("ObjectIR / Lattice interpreter benchmark");
-        Console.WriteLine($"Runtime: .NET {Environment.Version}, {(Environment.Is64BitProcess ? "x64" : "x86")}, release={IsRelease()}");
-        Console.WriteLine();
+        _cpu = new CPU();
+        var module = TextIrParser.ParseModule(ModuleSource);
+        _cpu.LoadModule(module);
 
-        var rt = Silently(() =>
-        {
-            var r = new CPU();
-            var module = TextIrParser.ParseModule(ModuleSource);
-            r.LoadModule(module);
-            return r;
-        });
+        _luaScript = new MoonSharp.Interpreter.Script(MoonSharp.Interpreter.CoreModules.None);
+        _luaScript.DoString("""
+            function sumloop(n)
+                local s = 0
+                local i = 0
+                while i < n do s = s + i i = i + 1 end
+                return s
+            end
+            function branchloop(n)
+                local c = 0
+                local i = 0
+                while i < n do
+                    if i % 2 == 0 then c = c + 1 end
+                    i = i + 1
+                end
+                return c
+            end
+            function fib(n)
+                if n < 2 then return n end
+                return fib(n - 1) + fib(n - 2)
+            end
+            """);
+        _luaSumFn = _luaScript.Globals.Get("sumloop")!;
+        _luaBranchFn = _luaScript.Globals.Get("branchloop")!;
+        _luaFibFn = _luaScript.Globals.Get("fib")!;
 
-        // Untimed warmups
-        Silently(() => rt.CallMethod<int>("Program.SumLoop", 1000));
-        Silently(() => rt.CallMethod<int>("Program.BranchLoop", 1000));
-        Silently(() => rt.CallMethod<int>("Program.Fib", 10));
-
-        var lua = SetupLua();
-
-        var rows = new List<Row>
-        {
-            Bench("SumLoop (300k iterations)",
-                ops: SumN, opUnit: "iteration",
-                objectIr: () => rt.CallMethod<int>("Program.SumLoop", SumN),
-                csharp: () => SumLoopCs(SumN),
-                luaFn: lua.sum, luaArg: SumN),
-
-            Bench("BranchLoop (100k iterations, if in loop)",
-                ops: BranchN, opUnit: "iteration",
-                objectIr: () => rt.CallMethod<int>("Program.BranchLoop", BranchN),
-                csharp: () => BranchLoopCs(BranchN),
-                luaFn: lua.branch, luaArg: BranchN),
-
-            Bench($"Fib({FibN}) (57,313 recursive calls)",
-                ops: CallCount(FibN), opUnit: "call",
-                objectIr: () => rt.CallMethod<int>("Program.Fib", FibN),
-                csharp: () => FibCs(FibN),
-                luaFn: lua.fib, luaArg: FibN),
-        };
-
-        PrintTable(rows);
+        ValidateResults();
     }
 
-    private sealed record Row(
-        string Name, long Ops, string OpUnit,
-        double IrMs, long IrAlloc, long IrResult,
-        double CsMs, long CsResult,
-        double? LuaMs, double? LuaResult);
-
-    private static Row Bench(string name, long ops, string opUnit,
-        Func<long> objectIr, Func<long> csharp,
-        MoonSharp.Interpreter.DynValue? luaFn, int luaArg)
+    private void ValidateResults()
     {
-        long a0 = GC.GetAllocatedBytesForCurrentThread();
-        var sw = Stopwatch.StartNew();
-        long irResult = Silently(objectIr);
-        sw.Stop();
-        long irAlloc = GC.GetAllocatedBytesForCurrentThread() - a0;
-        double irMs = sw.Elapsed.TotalMilliseconds;
+        int irSum = _cpu.CallMethod<int>("Program.SumLoop", SumN);
+        long csSum = SumLoopCs(SumN);
+        long luaSum = (long)_luaScript.Call(_luaSumFn, SumN).Number;
+        if (irSum != csSum || csSum != luaSum)
+            throw new Exception($"SumLoop mismatch: ObjectIR={irSum}, C#={csSum}, Lua={luaSum}");
 
-        long csResult = csharp();
-        double csMs = MeasurePerInvocation(() => csharp());
+        int irBranch = _cpu.CallMethod<int>("Program.BranchLoop", BranchN);
+        long csBranch = BranchLoopCs(BranchN);
+        long luaBranch = (long)_luaScript.Call(_luaBranchFn, BranchN).Number;
+        if (irBranch != csBranch || csBranch != luaBranch)
+            throw new Exception($"BranchLoop mismatch: ObjectIR={irBranch}, C#={csBranch}, Lua={luaBranch}");
 
-        double? luaMs = null;
-        double? luaResult = null;
-        if (luaFn != null)
-        {
-            var script = _luaScript!;
-            luaResult = script.Call(luaFn, luaArg).Number;
-            luaMs = MeasurePerInvocation(() => script.Call(luaFn, luaArg));
-        }
-
-        return new Row(name, ops, opUnit, irMs, irAlloc, irResult, csMs, csResult, luaMs, luaResult);
+        int irFib = _cpu.CallMethod<int>("Program.Fib", FibN);
+        long csFib = FibCs(FibN);
+        long luaFib = (long)_luaScript.Call(_luaFibFn, FibN).Number;
+        if (irFib != csFib || csFib != luaFib)
+            throw new Exception($"Fib mismatch: ObjectIR={irFib}, C#={csFib}, Lua={luaFib}");
     }
 
-    private static double MeasurePerInvocation(Action body)
-    {
-        body();
-        int reps = 1;
-        while (true)
-        {
-            var sw = Stopwatch.StartNew();
-            for (int i = 0; i < reps; i++) body();
-            sw.Stop();
-            if (sw.Elapsed.TotalMilliseconds >= 250)
-                return sw.Elapsed.TotalMilliseconds / reps;
-            reps *= 4;
-        }
-    }
+    [BenchmarkCategory("SumLoop")]
+    [Benchmark(Description = "ObjectIR")]
+    public int SumLoop_ObjectIR() => _cpu.CallMethod<int>("Program.SumLoop", SumN);
+
+    [BenchmarkCategory("SumLoop")]
+    [Benchmark(Baseline = true, Description = "C#")]
+    public long SumLoop_CSharp() => SumLoopCs(SumN);
+
+    [BenchmarkCategory("SumLoop")]
+    [Benchmark(Description = "Lua (MoonSharp)")]
+    public double SumLoop_Lua() => _luaScript.Call(_luaSumFn, SumN).Number;
+
+    [BenchmarkCategory("BranchLoop")]
+    [Benchmark(Description = "ObjectIR")]
+    public int BranchLoop_ObjectIR() => _cpu.CallMethod<int>("Program.BranchLoop", BranchN);
+
+    [BenchmarkCategory("BranchLoop")]
+    [Benchmark(Baseline = true, Description = "C#")]
+    public long BranchLoop_CSharp() => BranchLoopCs(BranchN);
+
+    [BenchmarkCategory("BranchLoop")]
+    [Benchmark(Description = "Lua (MoonSharp)")]
+    public double BranchLoop_Lua() => _luaScript.Call(_luaBranchFn, BranchN).Number;
+
+    [BenchmarkCategory("Fib")]
+    [Benchmark(Description = "ObjectIR")]
+    public int Fib_ObjectIR() => _cpu.CallMethod<int>("Program.Fib", FibN);
+
+    [BenchmarkCategory("Fib")]
+    [Benchmark(Baseline = true, Description = "C#")]
+    public long Fib_CSharp() => FibCs(FibN);
+
+    [BenchmarkCategory("Fib")]
+    [Benchmark(Description = "Lua (MoonSharp)")]
+    public double Fib_Lua() => _luaScript.Call(_luaFibFn, FibN).Number;
 
     private static long SumLoopCs(int n)
     {
@@ -235,91 +236,4 @@ public static class Program
     }
 
     private static long FibCs(int n) => n < 2 ? n : FibCs(n - 1) + FibCs(n - 2);
-
-    private static long CallCount(int n) => n < 2 ? 1 : CallCount(n - 1) + CallCount(n - 2) + 1;
-
-    private static MoonSharp.Interpreter.Script? _luaScript;
-
-    private static (MoonSharp.Interpreter.DynValue? sum, MoonSharp.Interpreter.DynValue? branch, MoonSharp.Interpreter.DynValue? fib) SetupLua()
-    {
-        var script = new MoonSharp.Interpreter.Script(MoonSharp.Interpreter.CoreModules.None);
-        script.DoString("""
-            function sumloop(n)
-                local s = 0
-                local i = 0
-                while i < n do s = s + i i = i + 1 end
-                return s
-            end
-            function branchloop(n)
-                local c = 0
-                local i = 0
-                while i < n do
-                    if i % 2 == 0 then c = c + 1 end
-                    i = i + 1
-                end
-                return c
-            end
-            function fib(n)
-                if n < 2 then return n end
-                return fib(n - 1) + fib(n - 2)
-            end
-            """);
-        _luaScript = script;
-        return (script.Globals.Get("sumloop"), script.Globals.Get("branchloop"), script.Globals.Get("fib"));
-    }
-
-    private static void PrintTable(List<Row> rows)
-    {
-        var ci = CultureInfo.InvariantCulture;
-        foreach (var r in rows)
-        {
-            double irPerOpUs = r.IrMs * 1000.0 / r.Ops;
-            double csPerOpNs = r.CsMs * 1_000_000.0 / r.Ops;
-            double slowdown = r.IrMs / r.CsMs;
-            double allocPerOp = (double)r.IrAlloc / r.Ops;
-
-            Console.WriteLine(r.Name);
-            Console.WriteLine($"  ObjectIR : {r.IrMs.ToString("F1", ci),10} ms   ({irPerOpUs.ToString("F2", ci)} us per {r.OpUnit}, {FormatBytes(allocPerOp)} allocated per {r.OpUnit})");
-            Console.WriteLine($"  C#       : {r.CsMs.ToString("F4", ci),10} ms   ({csPerOpNs.ToString("F2", ci)} ns per {r.OpUnit})");
-            if (r.LuaMs is double lm)
-            {
-                double luaSlow = lm > 0 ? r.IrMs / lm : 0;
-                Console.WriteLine($"  Lua      : {lm.ToString("F3", ci),10} ms   (MoonSharp, pure C# Lua interpreter)");
-                Console.WriteLine($"  ObjectIR is {slowdown.ToString("N0", ci)}x slower than C#, {luaSlow.ToString("N0", ci)}x slower than Lua");
-            }
-            else
-            {
-                Console.WriteLine($"  ObjectIR is {slowdown.ToString("N0", ci)}x slower than C#");
-            }
-
-            bool match = r.IrResult == r.CsResult && (!r.LuaResult.HasValue || (long)r.LuaResult.Value == r.CsResult);
-            Console.WriteLine(match ? "  results match" : $"  RESULT MISMATCH (ObjectIR={r.IrResult}, C#={r.CsResult}, Lua={r.LuaResult})");
-            Console.WriteLine();
-        }
-    }
-
-    private static string FormatBytes(double b)
-    {
-        var ci = CultureInfo.InvariantCulture;
-        if (b >= 1024 * 1024) return (b / (1024 * 1024)).ToString("F1", ci) + " MB";
-        if (b >= 1024) return (b / 1024).ToString("F1", ci) + " KB";
-        return b.ToString("F0", ci) + " B";
-    }
-
-    private static T Silently<T>(Func<T> f)
-    {
-        var old = Console.Out;
-        Console.SetOut(TextWriter.Null);
-        try { return f(); }
-        finally { Console.SetOut(old); }
-    }
-
-    private static bool IsRelease()
-    {
-#if DEBUG
-        return false;
-#else
-        return true;
-#endif
-    }
 }

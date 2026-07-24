@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using ObjectIR.Core;
 using ObjectIR.Core.AST;
 using ObjectIR.Core.Ast;
@@ -25,15 +26,15 @@ public static class CompiledExecutor
     {
         var code = cm.Code;
         int localCount = cm.LocalCount;
+        int codeLen = code.Length;
 
         var locals = new StackValue[localCount];
-        Array.Copy(args, locals, Math.Min(args.Length, localCount));
+        args.AsSpan(0, Math.Min(args.Length, localCount)).CopyTo(locals);
 
-        var s = new StackValue[code.Length + 16];
+        var s = new StackValue[codeLen + 16];
         int sp = 0;
 
         int ip = 0;
-        int codeLen = code.Length;
 
         while (ip < codeLen)
         {
@@ -177,34 +178,37 @@ public static class CompiledExecutor
                                 for (int i = argCount - 1; i >= 0; i--)
                                     pooled[i] = s[--sp];
 
-                            if (target.NativeImpl != null)
-                            {
-                                var nativeArgs = ArrayPool<Value<object>>.Shared.Rent(argCount);
-                                try
+                                if (target.NativeImpl != null)
                                 {
-                                    for (int i = 0; i < argCount; i++)
-                                        nativeArgs[i] = new Value<object>(pooled[i].ToObject()!);
-                                    var result = target.NativeImpl.Method(nativeArgs);
-                                    if (!string.Equals(target.ReturnType.Name, "void", StringComparison.Ordinal) && result != null)
+                                    var nativeArgs = ArrayPool<Value<object>>.Shared.Rent(argCount);
+                                    try
                                     {
-                                        var rawResult = result is IValue iv ? iv.GetObjectData() : result;
-                                        s[sp++] = RawToStackValue(rawResult);
+                                        for (int i = 0; i < argCount; i++)
+                                            nativeArgs[i] = new Value<object>(pooled[i].ToObject()!);
+                                        var result = target.NativeImpl.Method(nativeArgs);
+                                        if (!string.Equals(target.ReturnType.Name, "void", StringComparison.Ordinal) && result != null)
+                                        {
+                                            var rawResult = result is IValue iv ? iv.GetObjectData() : result;
+                                            s[sp++] = RawToStackValue(rawResult);
+                                        }
                                     }
+                                    finally { ArrayPool<Value<object>>.Shared.Return(nativeArgs, clearArray: true); }
                                 }
-                                finally { ArrayPool<Value<object>>.Shared.Return(nativeArgs, clearArray: true); }
-                            }
                                 else
                                 {
                                     var compiledTarget = cpu.GetCompiled(target);
                                     if (compiledTarget != null)
                                     {
-                                        var result = Execute(compiledTarget, pooled, cpu);
+                                        var result = Execute(compiledTarget, pooled.ToArray(), cpu);
                                         if (compiledTarget.ReturnsValue)
                                             s[sp++] = result;
                                     }
                                 }
                             }
-                            finally { ArrayPool<StackValue>.Shared.Return(pooled); }
+                            finally
+                            {
+                                ArrayPool<StackValue>.Shared.Return(pooled);
+                            }
                         }
                     }
                     ip++; break;
@@ -224,8 +228,9 @@ public static class CompiledExecutor
                             var ctor = cpu.ResolveMethod(newObj.Constructor);
                             if (ctor != null)
                             {
-                                var callArgs = new StackValue[ctor.Parameters.Count];
-                                for (int i = ctor.Parameters.Count - 1; i >= 0; i--)
+                                int ctorArgCount = ctor.Parameters.Count;
+                                var callArgs = new StackValue[ctorArgCount];
+                                for (int i = ctorArgCount - 1; i >= 0; i--)
                                     callArgs[i] = s[--sp];
                                 var compiledCtor = cpu.GetCompiled(ctor);
                                 if (compiledCtor != null)
@@ -259,8 +264,8 @@ public static class CompiledExecutor
                 default:
                     ip++; break;
             }
-            }
-            return default;
+        }
+        return default;
     }
 
     private static int CompareUnsigned(object? a, object? b)
@@ -279,7 +284,6 @@ public static class CompiledExecutor
     {
         bool result;
 
-        // Same-kind primitive comparisons: no boxing needed
         if (a.Kind == StackValueKind.Int && b.Kind == StackValueKind.Int)
         {
             int ia = a.AsInt, ib = b.AsInt;
@@ -301,7 +305,6 @@ public static class CompiledExecutor
             float fa = a.AsFloat, fb = b.AsFloat;
             if (op == OpCode.Ceq || op == OpCode.Cne)
             {
-                // NaN: NaN != NaN per IEC 60559
                 bool eq = BitConverter.SingleToInt32Bits(fa) == BitConverter.SingleToInt32Bits(fb);
                 result = op == OpCode.Ceq ? eq : !eq;
             }
@@ -320,7 +323,6 @@ public static class CompiledExecutor
             return StackValue.FromBool(result);
         }
 
-        // Fall back to boxed comparison for mixed or object types
         var aObj = a.ToObject();
         var bObj = b.ToObject();
 
