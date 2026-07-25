@@ -1,0 +1,9 @@
+Module: ComprehensiveTest (v1.0.0)
+----------------------------------------
+Type: Program
+  Add                       : 4 instructions
+  Factorial                 : 6 instructions
+  Fibonacci                 : 14 instructions
+  SumRange                  : 12 instructions
+  Main                      : 76 instructions
+

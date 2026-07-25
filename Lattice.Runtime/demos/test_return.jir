@@ -1,0 +1,91 @@
+{
+  "name": "TestReturn",
+  "version": "1.0.0",
+  "metadata": {},
+  "types": [
+    {
+      "kind": "Class",
+      "name": "Program",
+      "access": "Public",
+      "isAbstract": false,
+      "isSealed": false,
+      "interfaces": [],
+      "baseInterfaces": [],
+      "genericParameters": [],
+      "fields": [],
+      "properties": [],
+      "methods": [
+        {
+          "name": "GetValue",
+          "returnType": "int32",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 2,
+          "instructions": [
+            {
+              "opCode": "ldc.i4",
+              "operand": "42"
+            },
+            {
+              "opCode": "ret"
+            }
+          ]
+        },
+        {
+          "name": "Main",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 3,
+          "instructions": [
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "GetValue",
+                  "returnType": "int32",
+                  "parameterTypes": []
+                },
+                "arguments": []
+              }
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "int32"
+                  ]
+                },
+                "arguments": [
+                  "int32"
+                ]
+              }
+            },
+            {
+              "opCode": "ret"
+            }
+          ]
+        }
+      ],
+      "constructors": []
+    }
+  ],
+  "functions": []
+}

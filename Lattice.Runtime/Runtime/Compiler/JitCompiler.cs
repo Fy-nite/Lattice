@@ -32,6 +32,8 @@ public static class JitCompiler
     private static readonly MethodInfo _jitStfld = typeof(JitCompiler).GetMethod(nameof(JitStfld), BindingFlags.Static | BindingFlags.Public)!;
     private static readonly MethodInfo _jitNewobj = typeof(JitCompiler).GetMethod(nameof(JitNewobj), BindingFlags.Static | BindingFlags.Public)!;
     private static readonly MethodInfo _jitCall = typeof(JitCompiler).GetMethod(nameof(JitCall), BindingFlags.Static | BindingFlags.Public)!;
+    private static readonly MethodInfo _jitCallSimple = typeof(JitCompiler).GetMethod(nameof(JitCallSimple), BindingFlags.Static | BindingFlags.Public)!;
+    private static readonly MethodInfo _jitNewobjSimple = typeof(JitCompiler).GetMethod(nameof(JitNewobjSimple), BindingFlags.Static | BindingFlags.Public)!;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static object? UnboxArg(object[] args, int i) => i < args.Length ? args[i] : null;
@@ -336,23 +338,26 @@ public static class JitCompiler
             switch (instr.Opcode)
             {
                 case IrOpCode.LdcI4:
+                case IrOpCode.LdcR4:
                 case IrOpCode.Ldloc:
                 case IrOpCode.Ldarg:
                 case IrOpCode.Ldstr:
                 case IrOpCode.Ldnull:
-                case IrOpCode.LdcR4:
-                    sp++;
-                    if (sp > max) max = sp;
-                    break;
                 case IrOpCode.Dup:
                     sp++;
                     if (sp > max) max = sp;
                     break;
+
                 case IrOpCode.Add:
                 case IrOpCode.Sub:
                 case IrOpCode.Mul:
                 case IrOpCode.Div:
                 case IrOpCode.Rem:
+                case IrOpCode.And:
+                case IrOpCode.Or:
+                case IrOpCode.Xor:
+                case IrOpCode.Shl:
+                case IrOpCode.Shr:
                 case IrOpCode.Ceq:
                 case IrOpCode.Cne:
                 case IrOpCode.Cgt:
@@ -361,6 +366,11 @@ public static class JitCompiler
                 case IrOpCode.CgeUn:
                     sp--;
                     break;
+
+                case IrOpCode.Neg:
+                case IrOpCode.Not:
+                    break;
+
                 case IrOpCode.Stloc:
                 case IrOpCode.Starg:
                 case IrOpCode.Pop:
@@ -368,20 +378,23 @@ public static class JitCompiler
                 case IrOpCode.Brtrue:
                     sp--;
                     break;
-                case IrOpCode.Not:
-                    break;
+
                 case IrOpCode.Ret:
                     if (cm.ReturnsValue) sp--;
                     break;
+
                 case IrOpCode.Ldfld:
                     sp--;
                     sp++;
                     break;
+
                 case IrOpCode.Stfld:
                     sp -= 2;
                     break;
+
                 case IrOpCode.Newobj:
                     break;
+
                 case IrOpCode.Call:
                     break;
             }
@@ -458,7 +471,7 @@ public static class JitCompiler
 
                     case IrOpCode.LdcR4:
                         il.Emit(OpCodes.Ldarg_2);
-                        il.Emit(OpCodes.Ldfld, typeof(CompiledMethod).GetField(nameof(CompiledMethod.FloatTable))!);
+                        il.Emit(OpCodes.Call, typeof(CompiledMethod).GetProperty(nameof(CompiledMethod.FloatTable))!.GetMethod!);
                         il.Emit(OpCodes.Ldc_I4, instr.Operand);
                         il.Emit(OpCodes.Ldelem_R4);
                         il.Emit(OpCodes.Box, typeof(float));
@@ -468,7 +481,7 @@ public static class JitCompiler
 
                     case IrOpCode.Ldstr:
                         il.Emit(OpCodes.Ldarg_2);
-                        il.Emit(OpCodes.Ldfld, typeof(CompiledMethod).GetField(nameof(CompiledMethod.StringTable))!);
+                        il.Emit(OpCodes.Call, typeof(CompiledMethod).GetProperty(nameof(CompiledMethod.StringTable))!.GetMethod!);
                         il.Emit(OpCodes.Ldc_I4, instr.Operand);
                         il.Emit(OpCodes.Ldelem_Ref);
                         il.Emit(OpCodes.Stloc, STACK_BASE + sp);
@@ -621,7 +634,7 @@ public static class JitCompiler
                         sp--;
                         il.Emit(OpCodes.Ldloc, STACK_BASE + sp);
                         il.Emit(OpCodes.Ldarg_2);
-                        il.Emit(OpCodes.Ldfld, typeof(CompiledMethod).GetField(nameof(CompiledMethod.StringTable))!);
+                        il.Emit(OpCodes.Call, typeof(CompiledMethod).GetProperty(nameof(CompiledMethod.StringTable))!.GetMethod!);
                         il.Emit(OpCodes.Ldc_I4, instr.Operand);
                         il.Emit(OpCodes.Ldelem_Ref);
                         il.Emit(OpCodes.Call, _jitLdfld);
@@ -636,7 +649,7 @@ public static class JitCompiler
                         il.Emit(OpCodes.Ldloc, STACK_BASE + sp);
                         il.Emit(OpCodes.Ldloc, STACK_BASE + sp + 1);
                         il.Emit(OpCodes.Ldarg_2);
-                        il.Emit(OpCodes.Ldfld, typeof(CompiledMethod).GetField(nameof(CompiledMethod.StringTable))!);
+                        il.Emit(OpCodes.Call, typeof(CompiledMethod).GetProperty(nameof(CompiledMethod.StringTable))!.GetMethod!);
                         il.Emit(OpCodes.Ldc_I4, instr.Operand);
                         il.Emit(OpCodes.Ldelem_Ref);
                         il.Emit(OpCodes.Call, _jitStfld);
@@ -654,10 +667,17 @@ public static class JitCompiler
                         int ctorArgCount = ctor?.ParameterTypes.Count ?? 0;
 
                         il.Emit(OpCodes.Ldstr, newObj.Type.Name);
-                        il.Emit(OpCodes.Ldloc, STACK_BASE + sp - ctorArgCount);
                         il.Emit(OpCodes.Ldc_I4, ctorArgCount);
+                        il.Emit(OpCodes.Newarr, typeof(object));
+                        for (int i = 0; i < ctorArgCount; i++)
+                        {
+                            il.Emit(OpCodes.Dup);
+                            il.Emit(OpCodes.Ldc_I4, i);
+                            il.Emit(OpCodes.Ldloc, STACK_BASE + sp - ctorArgCount + i);
+                            il.Emit(OpCodes.Stelem_Ref);
+                        }
                         il.Emit(OpCodes.Ldarg_1);
-                        il.Emit(OpCodes.Call, _jitNewobj);
+                        il.Emit(OpCodes.Call, _jitNewobjSimple);
                         sp -= ctorArgCount;
                         il.Emit(OpCodes.Stloc, STACK_BASE + sp);
                         sp++;
@@ -673,16 +693,24 @@ public static class JitCompiler
 
                         int callArgCount = callInstr.Target.ParameterTypes.Count;
 
+                        sp -= callArgCount;
+
                         il.Emit(OpCodes.Ldc_I4, targetIdx);
-                        il.Emit(OpCodes.Ldloc, STACK_BASE + sp - callArgCount);
                         il.Emit(OpCodes.Ldc_I4, callArgCount);
+                        il.Emit(OpCodes.Newarr, typeof(object));
+                        for (int i = 0; i < callArgCount; i++)
+                        {
+                            il.Emit(OpCodes.Dup);
+                            il.Emit(OpCodes.Ldc_I4, i);
+                            il.Emit(OpCodes.Ldloc, STACK_BASE + sp + i);
+                            il.Emit(OpCodes.Stelem_Ref);
+                        }
                         il.Emit(OpCodes.Ldarg_1);
                         il.Emit(OpCodes.Ldarg_2);
-                        il.Emit(OpCodes.Call, _jitCall);
+                        il.Emit(OpCodes.Call, _jitCallSimple);
 
-                        sp -= callArgCount;
-                        var resolved = cpu_ResolveMethodStub(callInstr.Target, cm);
-                        if (resolved != null && !string.Equals(resolved.ReturnType.Name, "void", StringComparison.Ordinal))
+                        bool returnsValue = !string.Equals(callInstr.Target.ReturnType?.Name, "void", StringComparison.Ordinal);
+                        if (returnsValue)
                         {
                             il.Emit(OpCodes.Stloc, STACK_BASE + sp);
                             sp++;
@@ -707,11 +735,6 @@ public static class JitCompiler
         {
             return null;
         }
-    }
-
-    private static MethodNode? cpu_ResolveMethodStub(MethodReference target, CompiledMethod cm)
-    {
-        return cm.SourceMethod.Body?.Statements.Count > 0 ? null : null;
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -770,12 +793,12 @@ public static class JitCompiler
         {
             bool result = opcode switch
             {
-                41 => ia == ib,
-                42 => ia != ib,
-                44 => ia > ib,
-                46 => ia < ib,
-                43 => ((uint)ia) > ((uint)ib),
-                45 => ((uint)ia) >= ((uint)ib),
+                (int)IrOpCode.Ceq => ia == ib,
+                (int)IrOpCode.Cne => ia != ib,
+                (int)IrOpCode.Cgt => ia > ib,
+                (int)IrOpCode.Clt => ia < ib,
+                (int)IrOpCode.CgtUn => ((uint)ia) > ((uint)ib),
+                (int)IrOpCode.CgeUn => ((uint)ia) >= ((uint)ib),
                 _ => false
             };
             return result ? 1 : 0;
@@ -785,32 +808,32 @@ public static class JitCompiler
         {
             bool result = opcode switch
             {
-                41 => BitConverter.SingleToInt32Bits(fa) == BitConverter.SingleToInt32Bits(fb),
-                42 => BitConverter.SingleToInt32Bits(fa) != BitConverter.SingleToInt32Bits(fb),
-                44 => !float.IsNaN(fa) && !float.IsNaN(fb) && fa > fb,
-                46 => !float.IsNaN(fa) && !float.IsNaN(fb) && fa < fb,
-                43 => (float.IsNaN(fa) || float.IsNaN(fb)) || fa > fb,
-                45 => (float.IsNaN(fa) || float.IsNaN(fb)) || fa >= fb,
+                (int)IrOpCode.Ceq => BitConverter.SingleToInt32Bits(fa) == BitConverter.SingleToInt32Bits(fb),
+                (int)IrOpCode.Cne => BitConverter.SingleToInt32Bits(fa) != BitConverter.SingleToInt32Bits(fb),
+                (int)IrOpCode.Cgt => !float.IsNaN(fa) && !float.IsNaN(fb) && fa > fb,
+                (int)IrOpCode.Clt => !float.IsNaN(fa) && !float.IsNaN(fb) && fa < fb,
+                (int)IrOpCode.CgtUn => (float.IsNaN(fa) || float.IsNaN(fb)) || fa > fb,
+                (int)IrOpCode.CgeUn => (float.IsNaN(fa) || float.IsNaN(fb)) || fa >= fb,
                 _ => false
             };
             return result ? 1 : 0;
         }
 
         bool cmpResult;
-        if (a == null && b == null) cmpResult = opcode == 41 || opcode == 45;
-        else if (a == null) cmpResult = opcode == 42 || opcode == 44 || opcode == 43;
-        else if (b == null) cmpResult = opcode == 42 || opcode == 46 || opcode == 45;
+        if (a == null && b == null) cmpResult = opcode == (int)IrOpCode.Ceq || opcode == (int)IrOpCode.CgeUn;
+        else if (a == null) cmpResult = opcode == (int)IrOpCode.Cne || opcode == (int)IrOpCode.Cgt || opcode == (int)IrOpCode.CgtUn;
+        else if (b == null) cmpResult = opcode == (int)IrOpCode.Cne || opcode == (int)IrOpCode.Clt || opcode == (int)IrOpCode.CgeUn;
         else if (a is IComparable ca)
         {
             int c = ca.CompareTo(b);
             cmpResult = opcode switch
             {
-                41 => c == 0,
-                42 => c != 0,
-                44 => c > 0,
-                46 => c < 0,
-                43 => c > 0,
-                45 => c >= 0,
+                (int)IrOpCode.Ceq => c == 0,
+                (int)IrOpCode.Cne => c != 0,
+                (int)IrOpCode.Cgt => c > 0,
+                (int)IrOpCode.Clt => c < 0,
+                (int)IrOpCode.CgtUn => c > 0,
+                (int)IrOpCode.CgeUn => c >= 0,
                 _ => false
             };
         }
@@ -907,6 +930,16 @@ public static class JitCompiler
         var compiledTarget = cpu.GetCompiled(target);
         if (compiledTarget != null)
         {
+            var jitDel = cpu.Cache.GetJit(target);
+            if (jitDel != null)
+            {
+                var jitArgs = new object?[argCount];
+                for (int i = 0; i < argCount; i++)
+                    jitArgs[i] = args[i];
+                var jitResult = jitDel(jitArgs, cpu, compiledTarget);
+                return compiledTarget.ReturnsValue ? jitResult : null;
+            }
+
             var stackArgs = new StackValue[argCount];
             for (int i = 0; i < argCount; i++)
                 stackArgs[i] = CompiledExecutor.RawToStackValue(args[i]);
@@ -916,4 +949,10 @@ public static class JitCompiler
 
         return null;
     }
+
+    public static object? JitCallSimple(int targetIndex, object?[] args, CPU cpu, CompiledMethod cm)
+        => JitCall(targetIndex, args, args.Length, cpu, cm);
+
+    public static object? JitNewobjSimple(string typeName, object?[] args, CPU cpu)
+        => JitNewobj(typeName, args, args.Length, cpu);
 }

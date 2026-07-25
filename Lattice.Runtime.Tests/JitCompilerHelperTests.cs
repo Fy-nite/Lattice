@@ -131,12 +131,12 @@ public class JitCompilerHelperTests
 
     // ── JitCompare ──
 
-    private const int OpCeq = 41;
-    private const int OpCne = 42;
-    private const int OpCgt = 44;
-    private const int OpClt = 46;
-    private const int OpCgtUn = 43;
-    private const int OpCgeUn = 45;
+    private const int OpCeq = (int)OpCode.Ceq;
+    private const int OpCne = (int)OpCode.Cne;
+    private const int OpCgt = (int)OpCode.Cgt;
+    private const int OpClt = (int)OpCode.Clt;
+    private const int OpCgtUn = (int)OpCode.CgtUn;
+    private const int OpCgeUn = (int)OpCode.CgeUn;
 
     [Theory]
     [InlineData(5, 5, OpCeq, 1)]

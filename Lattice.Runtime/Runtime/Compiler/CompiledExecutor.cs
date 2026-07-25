@@ -5,6 +5,7 @@ using ObjectIR.Core.AST;
 using ObjectIR.Core.Ast;
 using lattice.Core;
 using lattice.Throwables;
+using lattice.Runtime.Memory;
 
 using System.Buffers;
 
@@ -222,7 +223,20 @@ public static class CompiledExecutor
 
                     if (newObj != null)
                     {
-                        var instance = new ManagedObject(newObj.Type.Name);
+                        ManagedObject instance;
+                        if (cpu.Heap != null)
+                        {
+                            int handle = cpu.Heap.NewObject(newObj.Type.Name).Handle;
+                            instance = new ManagedObject(newObj.Type.Name)
+                            {
+                                Heap = cpu.Heap,
+                                HeapHandle = handle
+                            };
+                        }
+                        else
+                        {
+                            instance = new ManagedObject(newObj.Type.Name);
+                        }
                         if (newObj.Constructor != null)
                         {
                             var ctor = cpu.ResolveMethod(newObj.Constructor);

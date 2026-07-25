@@ -26,6 +26,11 @@ public class CompilationCache
         return _compiled[method];
     }
 
+    public void SetCompiled(MethodNode method, CompiledMethod cm)
+    {
+        _compiled[method] = cm;
+    }
+
     public JittedMethod? GetJit(MethodNode method)
     {
         _jitDelegates.TryGetValue(method, out var jit);

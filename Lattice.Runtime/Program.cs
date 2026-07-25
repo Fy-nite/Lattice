@@ -1,9 +1,11 @@
 using CommandLine;
 using ObjectIR.Core;
 using ObjectIR.Core.AST;
+using ObjectIR.Core.Fob;
 using ObjectIR.Core.Serialization;
 using ObjectIR.Stdlib.System;
 using lattice;
+using lattice.Runtime.Compiler;
 using lattice.Throwables;
 using MongoDB.Bson;
 using System.Reflection;
@@ -36,10 +38,13 @@ class Program
         [Option('q', "quiet", Required = false, HelpText = "Suppress the runtime header and version info.")]
         public bool Quiet { get; set; }
 
+        [Option("experimental", Required = false, HelpText = "Enable experimental features (space-separated): jit, heap, manual-malloc, generalized-jit, native-transpile")]
+        public IEnumerable<string> Experimental { get; set; } = Enumerable.Empty<string>();
+
         [Option('o', "output", Required = false, HelpText = "Specify the base path for output files (used with --compile).")]
         public string? OutputPath { get; set; }
 
-        [Value(0, MetaName = "input path", Required = true, HelpText = "Path to the .oir or .bir file.")]
+        [Value(0, MetaName = "input path", Required = true, HelpText = "Path to the .oir, .bir, or .fob file.")]
         public string InputPath { get; set; } = string.Empty;
 
         [Value(1, MetaName = "program args", HelpText = "Arguments passed to the Lattice program.")]
@@ -73,7 +78,13 @@ class Program
             Environment.Exit(1);
         }
 
-        if (Path.GetExtension(opts.InputPath).Contains(".bir"))
+        var ext = Path.GetExtension(opts.InputPath);
+        if (ext.Contains(".fob"))
+        {
+            var fobBinary = FobIrReader.ReadFromFile(opts.InputPath);
+            RootModule = ModuleBinaryReader.Read(fobBinary.Payload);
+        }
+        else if (ext.Contains(".bir"))
         {
             RootModule = ModuleSerializer.LoadFromBson(File.ReadAllBytes(opts.InputPath));
         }
@@ -109,21 +120,56 @@ class Program
         if (opts.Compile)
         {
             string basePath = opts.OutputPath ?? opts.InputPath;
+
+            // Strip existing extension for output paths
+            if (Path.HasExtension(basePath))
+                basePath = Path.ChangeExtension(basePath, null);
+
+            // BIR/BSON binary — fast to load, no parsing
             File.WriteAllBytes(basePath + ".bir", RootModule.DumpBson());
+            Console.WriteLine($"  -> {basePath}.bir");
+
+            // JSON interchange format
             File.WriteAllText(basePath + ".jir", RootModule.DumpJson());
+            Console.WriteLine($"  -> {basePath}.jir");
+
+            // FOB/IR v3 — production binary with includes table
+            var payload = ModuleBinaryWriter.Write(RootModule);
+            var includes = FobIrCompiler.CollectIncludes(RootModule);
+            var fobBytes = new FobIrCompiler().CompileFromPayload(payload, includes);
+            File.WriteAllBytes(basePath + ".fob", fobBytes);
+            Console.WriteLine($"  -> {basePath}.fob");
+
+            // Module info summary
             File.WriteAllText(basePath + ".moduleinfo.txt", RootModule.DumpText());
-            Console.WriteLine($"Compiled to {basePath}.bir \nOutputted Module info to {basePath}.moduleinfo.txt ");
+            Console.WriteLine($"  -> {basePath}.moduleinfo.txt");
+
             Environment.Exit(0);
         }
 
         try
         {
+            var features = Experimental.Parse(opts.Experimental);
+            Experimental.Set(features);
+
+            if (!opts.Quiet && features != ExperimentalFeature.None)
+            {
+                Console.WriteLine($"[experimental] Active features: {features}");
+            }
+
             // Scan for native hooks in the standard library
             NativeRegistry.RegisterFromAssembly(typeof(ObjectIR.Stdlib.System.IO).Assembly);
+            NativeRegistry.RegisterFromAssembly(typeof(Program).Assembly);
 
             CPU mainCpu = new();
-            mainCpu.Scheduler = scheduler; // IMPORTANT: Required for SpawnThread to work!
+            mainCpu.Scheduler = scheduler;
             mainCpu.Debug = opts.Debug;
+
+            if (Experimental.IsEnabled(ExperimentalFeature.Heap) || Experimental.IsEnabled(ExperimentalFeature.ManualMalloc))
+            {
+                mainCpu.Heap = new lattice.Runtime.Memory.HeapAllocator();
+            }
+
             mainCpu.LoadModule(RootModule);
             
             // We need to initialize the main thread in the CPU

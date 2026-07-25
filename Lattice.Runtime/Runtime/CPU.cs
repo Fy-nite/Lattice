@@ -8,12 +8,15 @@ using ObjectIR.Core.Ast;
 using ObjectIR.StdLib.Core.Generics;
 using ObjectIR.StdLib.Core.Memory;
 using lattice.Runtime.Compiler;
+using lattice.Runtime.Memory;
+using lattice.Runtime;
 
 public class CPU : IProgramLoader
 {
     public lattice.Runtime.Scheduler Scheduler { get; set; }
     public List<ModuleNode> Modules = new();
     public CompilationCache Cache { get; set; } = new();
+    public HeapAllocator? Heap { get; set; }
     public ModuleNode program;
 
     public CallStack CurrentFrame;
@@ -91,7 +94,8 @@ public class CPU : IProgramLoader
             Debug = this.Debug,
             MaxStackDepth = this.MaxStackDepth,
             Scheduler = this.Scheduler,
-            Cache = this.Cache
+            Cache = this.Cache,
+            Heap = this.Heap
         };
 
         // Resolve method from delegate
@@ -276,6 +280,42 @@ public class CPU : IProgramLoader
                 {
                     // Pop the temporary frame
                     CurrentFrame = CurrentFrame.Previous;
+                }
+                return;
+            }
+
+            // Fast path: if the method has been compiled or JIT'd, use that instead of AST interpretation
+            var compiled = Cache.GetCompiled(method);
+            if (compiled != null)
+            {
+                if (Experimental.IsEnabled(ExperimentalFeature.Jit))
+                {
+                    var jitDel = Cache.GetJit(method);
+                    if (jitDel != null)
+                    {
+                        var jitArgs = new object?[argCount];
+                        for (int i = 0; i < argCount; i++)
+                            jitArgs[i] = poppedArgs[i];
+                        var jitResult = jitDel(jitArgs, this, compiled);
+                        if (compiled.ReturnsValue && CurrentFrame?.Previous != null)
+                        {
+                            CurrentFrame.Previous.EvaluationStack.Push(jitResult);
+                        }
+                        return;
+                    }
+
+                    int count = Cache.IncrementExecutionCount(method);
+                    if (count == 1000)
+                        QueueJitCompile(method, compiled);
+                }
+
+                var rawArgs = new StackValue[argCount];
+                for (int i = 0; i < argCount; i++)
+                    rawArgs[i] = CompiledExecutor.RawToStackValue(poppedArgs[i]);
+                var compiledResult = CompiledExecutor.Execute(compiled, rawArgs, this);
+                if (compiled.ReturnsValue && CurrentFrame?.Previous != null)
+                {
+                    CurrentFrame.Previous.EvaluationStack.Push(compiledResult.ToObject());
                 }
                 return;
             }
@@ -544,8 +584,20 @@ public class CPU : IProgramLoader
                 NewObjInstruction newObj = (NewObjInstruction)instr;
                 try
                 {
-                    // 1. Allocate the managed object
-                    ManagedObject instance = new ManagedObject(newObj.Type.Name);
+                    ManagedObject instance;
+                    if (Heap != null)
+                    {
+                        int handle = Heap.NewObject(newObj.Type.Name).Handle;
+                        instance = new ManagedObject(newObj.Type.Name)
+                        {
+                            Heap = Heap,
+                            HeapHandle = handle
+                        };
+                    }
+                    else
+                    {
+                        instance = new ManagedObject(newObj.Type.Name);
+                    }
                     
                     // 2. Resolve and execute constructor if specified
                     if (newObj.Constructor != null)
@@ -961,22 +1013,25 @@ public class CPU : IProgramLoader
             throw new MethodResolutionException(methodPath, CurrentFrame?.GetStackTrace() ?? "");
 
         // Try JIT native path
-        var cmJit = Cache.GetCompiled(method);
-        var jitDel = cmJit != null ? Cache.GetJit(method) : null;
-        if (cmJit != null && jitDel != null)
+        if (Experimental.IsEnabled(ExperimentalFeature.Jit))
         {
-            var jitArgs = new object?[method.Parameters.Count];
-            for (int i = 0; i < jitArgs.Length; i++)
-                jitArgs[i] = i < args.Length ? args[i] : null;
-            var jitResult = jitDel(jitArgs, this, cmJit);
-            if (cmJit.ReturnsValue)
+            var cmJit = Cache.GetCompiled(method);
+            var jitDel = cmJit != null ? Cache.GetJit(method) : null;
+            if (cmJit != null && jitDel != null)
             {
-                var unwrapped = jitResult;
-                if (unwrapped != null && typeof(T) != unwrapped.GetType())
-                    return (T)Convert.ChangeType(unwrapped, typeof(T));
-                return (T)(unwrapped ?? default(T?)!);
+                var jitArgs = new object?[method.Parameters.Count];
+                for (int i = 0; i < jitArgs.Length; i++)
+                    jitArgs[i] = i < args.Length ? args[i] : null;
+                var jitResult = jitDel(jitArgs, this, cmJit);
+                if (cmJit.ReturnsValue)
+                {
+                    var unwrapped = jitResult;
+                    if (unwrapped != null && typeof(T) != unwrapped.GetType())
+                        return (T)Convert.ChangeType(unwrapped, typeof(T));
+                    return (T)(unwrapped ?? default(T?)!);
+                }
+                return default;
             }
-            return default;
         }
 
         // Try compiled interpreter path

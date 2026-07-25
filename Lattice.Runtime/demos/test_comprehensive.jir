@@ -1,0 +1,1167 @@
+{
+  "name": "ComprehensiveTest",
+  "version": "1.0.0",
+  "metadata": {},
+  "types": [
+    {
+      "kind": "Class",
+      "name": "Program",
+      "access": "Public",
+      "isAbstract": false,
+      "isSealed": false,
+      "interfaces": [],
+      "baseInterfaces": [],
+      "genericParameters": [],
+      "fields": [],
+      "properties": [],
+      "methods": [
+        {
+          "name": "Add",
+          "returnType": "float32",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [
+            {
+              "name": "a",
+              "type": "float32"
+            },
+            {
+              "name": "b",
+              "type": "float32"
+            }
+          ],
+          "localVariables": [],
+          "instructionCount": 4,
+          "instructions": [
+            {
+              "opCode": "ldarg",
+              "operand": "a"
+            },
+            {
+              "opCode": "ldarg",
+              "operand": "b"
+            },
+            {
+              "opCode": "add"
+            },
+            {
+              "opCode": "ret"
+            }
+          ]
+        },
+        {
+          "name": "Factorial",
+          "returnType": "int32",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [
+            {
+              "name": "n",
+              "type": "int32"
+            }
+          ],
+          "localVariables": [],
+          "instructionCount": 6,
+          "instructions": [
+            {
+              "opCode": "ldarg",
+              "operand": "n"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "1"
+            },
+            {
+              "opCode": "cgt"
+            },
+            {
+              "opCode": "if",
+              "operand": {
+                "condition": "stack",
+                "thenBlock": [
+                  {
+                    "opCode": "ldarg",
+                    "operand": "n"
+                  },
+                  {
+                    "opCode": "ldarg",
+                    "operand": "n"
+                  },
+                  {
+                    "opCode": "ldc.i4",
+                    "operand": "1"
+                  },
+                  {
+                    "opCode": "sub"
+                  },
+                  {
+                    "opCode": "call",
+                    "operand": {
+                      "target": {
+                        "declaringType": "Program",
+                        "name": "Factorial",
+                        "returnType": "int32",
+                        "parameterTypes": [
+                          "int32"
+                        ]
+                      },
+                      "arguments": [
+                        "int32"
+                      ]
+                    }
+                  },
+                  {
+                    "opCode": "mul"
+                  },
+                  {
+                    "opCode": "ret"
+                  }
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "1"
+            },
+            {
+              "opCode": "ret"
+            }
+          ]
+        },
+        {
+          "name": "Fibonacci",
+          "returnType": "int32",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [
+            {
+              "name": "n",
+              "type": "int32"
+            }
+          ],
+          "localVariables": [],
+          "instructionCount": 14,
+          "instructions": [
+            {
+              "opCode": "ldarg",
+              "operand": "n"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "2"
+            },
+            {
+              "opCode": "clt"
+            },
+            {
+              "opCode": "if",
+              "operand": {
+                "condition": "stack",
+                "thenBlock": [
+                  {
+                    "opCode": "ldarg",
+                    "operand": "n"
+                  },
+                  {
+                    "opCode": "ret"
+                  }
+                ]
+              }
+            },
+            {
+              "opCode": "ldarg",
+              "operand": "n"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "1"
+            },
+            {
+              "opCode": "sub"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Fibonacci",
+                  "returnType": "int32",
+                  "parameterTypes": [
+                    "int32"
+                  ]
+                },
+                "arguments": [
+                  "int32"
+                ]
+              }
+            },
+            {
+              "opCode": "ldarg",
+              "operand": "n"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "2"
+            },
+            {
+              "opCode": "sub"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Fibonacci",
+                  "returnType": "int32",
+                  "parameterTypes": [
+                    "int32"
+                  ]
+                },
+                "arguments": [
+                  "int32"
+                ]
+              }
+            },
+            {
+              "opCode": "add"
+            },
+            {
+              "opCode": "ret"
+            }
+          ]
+        },
+        {
+          "name": "SumRange",
+          "returnType": "int32",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [
+            {
+              "name": "n",
+              "type": "int32"
+            }
+          ],
+          "localVariables": [],
+          "instructionCount": 12,
+          "instructions": [
+            {
+              "opCode": "local",
+              "operand": {
+                "name": "i",
+                "type": "int32"
+              }
+            },
+            {
+              "opCode": "local",
+              "operand": {
+                "name": "sum",
+                "type": "int32"
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "0"
+            },
+            {
+              "opCode": "stloc",
+              "operand": "i"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "0"
+            },
+            {
+              "opCode": "stloc",
+              "operand": "sum"
+            },
+            {
+              "opCode": "ldloc",
+              "operand": "i"
+            },
+            {
+              "opCode": "ldarg",
+              "operand": "n"
+            },
+            {
+              "opCode": "clt"
+            },
+            {
+              "opCode": "while",
+              "operand": {
+                "condition": "stack",
+                "body": [
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldc.i4",
+                    "operand": "1"
+                  },
+                  {
+                    "opCode": "add"
+                  },
+                  {
+                    "opCode": "stloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldloc",
+                    "operand": "sum"
+                  },
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "add"
+                  },
+                  {
+                    "opCode": "stloc",
+                    "operand": "sum"
+                  },
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldarg",
+                    "operand": "n"
+                  },
+                  {
+                    "opCode": "clt"
+                  }
+                ]
+              }
+            },
+            {
+              "opCode": "ldloc",
+              "operand": "sum"
+            },
+            {
+              "opCode": "ret"
+            }
+          ]
+        },
+        {
+          "name": "Main",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 76,
+          "instructions": [
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022=== Comprehensive Lattice Test ===\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Float arithmetic: 3.5 \u002B 2.5 =\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.r4",
+              "operand": "3.5"
+            },
+            {
+              "opCode": "ldc.r4",
+              "operand": "2.5"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Add",
+                  "returnType": "float32",
+                  "parameterTypes": [
+                    "float32",
+                    "float32"
+                  ]
+                },
+                "arguments": [
+                  "float32",
+                  "float32"
+                ]
+              }
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Integer arithmetic: 7 * 8 =\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "7"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "8"
+            },
+            {
+              "opCode": "mul"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Div: 100 / 3 =\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "100"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "3"
+            },
+            {
+              "opCode": "div"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Sub: 50 - 17 =\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "50"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "17"
+            },
+            {
+              "opCode": "sub"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Comparison: 5 \u003E 3 ?\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "5"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "3"
+            },
+            {
+              "opCode": "cgt"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Factorial(5) =\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "5"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Factorial",
+                  "returnType": "int32",
+                  "parameterTypes": [
+                    "int32"
+                  ]
+                },
+                "arguments": [
+                  "int32"
+                ]
+              }
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Factorial(10) =\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "10"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Factorial",
+                  "returnType": "int32",
+                  "parameterTypes": [
+                    "int32"
+                  ]
+                },
+                "arguments": [
+                  "int32"
+                ]
+              }
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Fibonacci(10) =\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "10"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "Fibonacci",
+                  "returnType": "int32",
+                  "parameterTypes": [
+                    "int32"
+                  ]
+                },
+                "arguments": [
+                  "int32"
+                ]
+              }
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- SumRange(10) =\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "10"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "Program",
+                  "name": "SumRange",
+                  "returnType": "int32",
+                  "parameterTypes": [
+                    "int32"
+                  ]
+                },
+                "arguments": [
+                  "int32"
+                ]
+              }
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- While loop counting to 5:\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "local",
+              "operand": {
+                "name": "i",
+                "type": "int32"
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "0"
+            },
+            {
+              "opCode": "stloc",
+              "operand": "i"
+            },
+            {
+              "opCode": "ldloc",
+              "operand": "i"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "5"
+            },
+            {
+              "opCode": "clt"
+            },
+            {
+              "opCode": "while",
+              "operand": {
+                "condition": "stack",
+                "body": [
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "call",
+                    "operand": {
+                      "target": {
+                        "declaringType": "IO",
+                        "name": "Println",
+                        "returnType": "void",
+                        "parameterTypes": [
+                          "object"
+                        ]
+                      },
+                      "arguments": [
+                        "object"
+                      ]
+                    }
+                  },
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldc.i4",
+                    "operand": "1"
+                  },
+                  {
+                    "opCode": "add"
+                  },
+                  {
+                    "opCode": "stloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldc.i4",
+                    "operand": "5"
+                  },
+                  {
+                    "opCode": "clt"
+                  }
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Nested if/else: sign check\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "-7"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "0"
+            },
+            {
+              "opCode": "clt"
+            },
+            {
+              "opCode": "if",
+              "operand": {
+                "condition": "stack",
+                "thenBlock": [
+                  {
+                    "opCode": "ldstr",
+                    "operand": "\u0022negative\u0022"
+                  },
+                  {
+                    "opCode": "call",
+                    "operand": {
+                      "target": {
+                        "declaringType": "IO",
+                        "name": "Println",
+                        "returnType": "void",
+                        "parameterTypes": [
+                          "object"
+                        ]
+                      },
+                      "arguments": [
+                        "object"
+                      ]
+                    }
+                  }
+                ],
+                "elseBlock": [
+                  {
+                    "opCode": "ldc.i4",
+                    "operand": "0"
+                  },
+                  {
+                    "opCode": "ldc.i4",
+                    "operand": "0"
+                  },
+                  {
+                    "opCode": "cgt"
+                  },
+                  {
+                    "opCode": "if",
+                    "operand": {
+                      "condition": "stack",
+                      "thenBlock": [
+                        {
+                          "opCode": "ldstr",
+                          "operand": "\u0022positive\u0022"
+                        },
+                        {
+                          "opCode": "call",
+                          "operand": {
+                            "target": {
+                              "declaringType": "IO",
+                              "name": "Println",
+                              "returnType": "void",
+                              "parameterTypes": [
+                                "object"
+                              ]
+                            },
+                            "arguments": [
+                              "object"
+                            ]
+                          }
+                        }
+                      ],
+                      "elseBlock": [
+                        {
+                          "opCode": "ldstr",
+                          "operand": "\u0022zero\u0022"
+                        },
+                        {
+                          "opCode": "call",
+                          "operand": {
+                            "target": {
+                              "declaringType": "IO",
+                              "name": "Println",
+                              "returnType": "void",
+                              "parameterTypes": [
+                                "object"
+                              ]
+                            },
+                            "arguments": [
+                              "object"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Dup and Pop test:\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "99"
+            },
+            {
+              "opCode": "dup"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "pop"
+            },
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- Test complete!\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": [
+                  "object"
+                ]
+              }
+            },
+            {
+              "opCode": "ret"
+            }
+          ]
+        }
+      ],
+      "constructors": []
+    }
+  ],
+  "functions": []
+}

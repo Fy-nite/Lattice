@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using ObjectIR.Core.AST;
+using lattice.Runtime.Memory;
 
 namespace lattice.Core;
 
@@ -10,6 +11,11 @@ public class ManagedObject
     public Dictionary<string, MethodDTO> Methods { get; set; } = new();
     public Guid Id { get; } = Guid.NewGuid();
 
+    public HeapAllocator? Heap { get; set; }
+    public int HeapHandle { get; set; } = -1;
+
+    public bool UsesHeap => Heap != null && HeapHandle >= 0;
+
     public ManagedObject(string typeName)
     {
         TypeName = typeName;
@@ -17,11 +23,28 @@ public class ManagedObject
 
     public object? GetField(string name)
     {
+        if (UsesHeap)
+        {
+            var fieldMap = Heap!.GetFieldMap(TypeName);
+            if (fieldMap.TryGetValue(name, out int fi))
+            {
+                var obj = new HeapObject(Heap.Arena, HeapHandle);
+                return obj.GetField(fi).ToObject();
+            }
+            return null;
+        }
         return Fields.TryGetValue(name, out var val) ? val : null;
     }
 
     public void SetField(string name, object? value)
     {
+        if (UsesHeap)
+        {
+            int fi = Heap!.GetFieldIndex(TypeName, name);
+            var obj = new HeapObject(Heap.Arena, HeapHandle);
+            obj.SetField(fi, FieldValue.FromObject(value));
+            return;
+        }
         Fields[name] = value!;
     }
 

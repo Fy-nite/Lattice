@@ -1,0 +1,6 @@
+Module: TestReturn (v1.0.0)
+----------------------------------------
+Type: Program
+  GetValue                  : 2 instructions
+  Main                      : 3 instructions
+
