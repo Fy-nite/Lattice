@@ -1,0 +1,379 @@
+module AllOpcodesDemo version 1.0.0
+
+class Globals {
+    static field counter: int32
+}
+
+class Item {
+    field value: int32
+    field name: string
+
+    constructor(v: int32, n: string) {
+        ldarg this
+        ldarg v
+        stfld Item.value
+        ldarg this
+        ldarg n
+        stfld Item.name
+        ret
+    }
+
+    method Describe() -> string {
+        ldstr "Item-object"
+        ret
+    }
+}
+
+class Program {
+    static method Add(a: int32, b: int32) -> int32 {
+        ldarg a
+        ldarg b
+        add
+        ret
+    }
+
+    static method TakesArgs(x: int32, y: int32) -> int32 {
+        ldarg x
+        ldarg y
+        add
+        starg x
+        ldarg x
+        ret
+    }
+
+    static method Main() -> void {
+        // ============================================================
+        //  1. STACK MANIPULATION
+        // ============================================================
+        ldc.i4 1
+        dup
+        call IO.Println(object) -> void
+        pop
+        ldnull
+        pop
+
+        // ============================================================
+        //  2. LOAD CONSTANTS
+        // ============================================================
+        ldstr "--- Constants ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 42
+        call IO.Println(object) -> void
+
+        ldc.i8 1234567890123
+        call IO.Println(object) -> void
+
+        ldc.r4 3.14
+        call IO.Println(object) -> void
+
+        ldc.r8 2.718281828459045
+        call IO.Println(object) -> void
+
+        ldstr "hello"
+        call IO.Println(object) -> void
+
+        ldc.i4 99
+        call IO.Println(object) -> void
+
+        // ============================================================
+        //  3. ARGUMENTS AND LOCAL VARIABLES
+        // ============================================================
+        ldstr "--- Args and Locals ---"
+        call IO.Println(object) -> void
+
+        local i: int32
+        local j: int32
+
+        ldc.i4 10
+        stloc i
+        ldloc i
+        stloc j
+        ldloc j
+        call IO.Println(object) -> void
+
+        // starg: store to argument slot (call helper that exercises it)
+        ldc.i4 7
+        ldc.i4 8
+        call Program.TakesArgs(int32, int32) -> int32
+        call IO.Println(object) -> void
+
+        // ============================================================
+        //  4. FIELD ACCESS (INSTANCE)
+        // ============================================================
+        ldstr "--- Instance Fields ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 777
+        ldstr "widget"
+        newobj Item.constructor(int32, string)
+        dup
+        ldfld Item.value
+        call IO.Println(object) -> void
+        dup
+        ldfld Item.name
+        call IO.Println(object) -> void
+
+        dup
+        ldc.i4 999
+        stfld Item.value
+        dup
+        ldfld Item.value
+        call IO.Println(object) -> void
+        pop
+
+        // ============================================================
+        //  5. FIELD ACCESS (STATIC)
+        // ============================================================
+        ldstr "--- Static Fields ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 42
+        stsfld Globals.counter
+        ldsfld Globals.counter
+        call IO.Println(object) -> void
+
+        // ============================================================
+        //  6. ARITHMETIC
+        // ============================================================
+        ldstr "--- Arithmetic ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 100
+        ldc.i4 30
+        add
+        call IO.Println(object) -> void
+
+        ldc.i4 50
+        ldc.i4 20
+        sub
+        call IO.Println(object) -> void
+
+        ldc.i4 6
+        ldc.i4 7
+        mul
+        call IO.Println(object) -> void
+
+        ldc.i4 100
+        ldc.i4 3
+        div
+        call IO.Println(object) -> void
+
+        ldc.i4 100
+        ldc.i4 3
+        rem
+        call IO.Println(object) -> void
+
+        ldc.i4 42
+        neg
+        call IO.Println(object) -> void
+
+        // ============================================================
+        //  7. LOGICAL
+        // ============================================================
+        ldstr "--- Logical ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 0
+        not
+        call IO.Println(object) -> void
+
+        // ============================================================
+        //  8. COMPARISON
+        // ============================================================
+        ldstr "--- Comparison ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 5
+        ldc.i4 5
+        ceq
+        call IO.Println(object) -> void
+
+        ldc.i4 5
+        ldc.i4 3
+        cne
+        call IO.Println(object) -> void
+
+        ldc.i4 10
+        ldc.i4 5
+        cgt
+        call IO.Println(object) -> void
+
+        ldc.i4 10
+        ldc.i4 10
+        cge
+        call IO.Println(object) -> void
+
+        ldc.i4 3
+        ldc.i4 7
+        clt
+        call IO.Println(object) -> void
+
+        ldc.i4 3
+        ldc.i4 3
+        cle
+        call IO.Println(object) -> void
+
+        // ============================================================
+        //  9. TYPE CONVERSION AND TESTING
+        // ============================================================
+        ldstr "--- Type Conversion ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 65
+        conv float64
+        call IO.Println(object) -> void
+
+        ldstr "--- Type Testing ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 1
+        ldstr "a"
+        newobj Item.constructor(int32, string)
+        dup
+        castclass Item
+        isinst Item
+        call IO.Println(object) -> void
+        pop
+
+        // ============================================================
+        // 10. OBJECT AND ARRAY CREATION
+        // ============================================================
+        ldstr "--- Arrays ---"
+        call IO.Println(object) -> void
+
+        newarr
+        dup
+        ldc.i4 0
+        ldc.i4 99
+        stelem
+        dup
+        ldc.i4 0
+        ldelem
+        call IO.Println(object) -> void
+        pop
+
+        // ============================================================
+        // 11. METHOD CALLS
+        // ============================================================
+        ldstr "--- Method Calls ---"
+        call IO.Println(object) -> void
+
+        // static call
+        ldc.i4 10
+        ldc.i4 20
+        call Program.Add(int32, int32) -> int32
+        call IO.Println(object) -> void
+
+        // call on an object instance method
+        ldc.i4 2
+        ldstr "test2"
+        newobj Item.constructor(int32, string)
+        call Item.Describe() -> string
+        call IO.Println(object) -> void
+
+        // ============================================================
+        // 12. CONTROL FLOW: if / else
+        // ============================================================
+        ldstr "--- If / Else ---"
+        call IO.Println(object) -> void
+
+        ldc.i4 5
+        ldc.i4 10
+        clt
+        if (stack) {
+            ldstr "5 < 10 (expected)"
+            call IO.Println(object) -> void
+        }
+        else
+        {
+            ldstr "unexpected"
+            call IO.Println(object) -> void
+        }
+
+        ldc.i4 15
+        ldc.i4 10
+        clt
+        if (stack) {
+            ldstr "unexpected"
+            call IO.Println(object) -> void
+        }
+        else
+        {
+            ldstr "15 >= 10 (expected)"
+            call IO.Println(object) -> void
+        }
+
+        // ============================================================
+        // 13. CONTROL FLOW: while / break / continue
+        // ============================================================
+        ldstr "--- While / Break / Continue ---"
+        call IO.Println(object) -> void
+
+        local idx: int32
+        ldc.i4 0
+        stloc idx
+        ldloc idx
+        ldc.i4 10
+        clt
+        while (stack) {
+            ldloc idx
+            ldc.i4 3
+            ceq
+            if (stack) {
+                ldloc idx
+                ldc.i4 1
+                add
+                stloc idx
+                continue
+            }
+            ldloc idx
+            ldc.i4 7
+            ceq
+            if (stack) {
+                break
+            }
+            ldloc idx
+            call IO.Println(object) -> void
+            ldloc idx
+            ldc.i4 1
+            add
+            stloc idx
+            ldloc idx
+            ldc.i4 10
+            clt
+        }
+
+        // ============================================================
+        // 14. CONTROL FLOW: try / throw
+        // ============================================================
+        ldstr "--- Throw (will be caught by host) ---"
+        call IO.Println(object) -> void
+
+        // throw pops a value and raises it as a pending exception.
+        // The try opcode's canonical operand is a JSON object:
+        //   { "tryBlock": [...],
+        //     "catchBlocks": [{ "type": "TypeName", "variable": "ex",
+        //                      "body": [...] }],
+        //     "finallyBlock": [...] }
+        // Due to TextIR tokenizer limitations ({ } are split into
+        // separate tokens), structured try is best expressed in the
+        // JSON or FOB/IR v3 module formats. Here we demonstrate
+        // throw alone as a bare instruction.
+        try
+        ldstr "(bare try is a no-op without structured operand)"
+        call IO.Println(object) -> void
+
+        // Demonstrate throw opcode: push a value and raise it.
+        // This will be caught by the host's outermost catch block.
+        ldstr "--- Now throwing ---"
+        call IO.Println(object) -> void
+        ldstr "throw-demo-message"
+        throw
+
+        // Execution never reaches here.
+        ldstr "--- Demo Complete ---"
+        call IO.Println(object) -> void
+        ret
+    }
+}

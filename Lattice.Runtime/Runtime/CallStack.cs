@@ -11,6 +11,8 @@ public class CallStack
     public ManagedObject? This { get; set; }
     public CallStack? Previous { get; set; }
     public Stack<object> EvaluationStack { get; set; } = new();
+    public bool BreakRequested { get; set; }
+    public bool ContinueRequested { get; set; }
 
     public CallStack(MethodNode method, ManagedObject? thisObj = null)
     {

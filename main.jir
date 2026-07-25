@@ -1,0 +1,134 @@
+{
+  "name": "test",
+  "version": "1.0.0",
+  "metadata": {},
+  "types": [
+    {
+      "kind": "Class",
+      "name": "Program",
+      "access": "Public",
+      "isAbstract": false,
+      "isSealed": false,
+      "interfaces": [],
+      "baseInterfaces": [],
+      "genericParameters": [],
+      "fields": [],
+      "properties": [],
+      "methods": [
+        {
+          "name": "Main",
+          "returnType": "void",
+          "access": "Public",
+          "isStatic": true,
+          "isVirtual": false,
+          "isOverride": false,
+          "isAbstract": false,
+          "isConstructor": false,
+          "parameters": [],
+          "localVariables": [],
+          "instructionCount": 9,
+          "instructions": [
+            {
+              "opCode": "ldstr",
+              "operand": "\u0022--- While loop counting to 5:\u0022"
+            },
+            {
+              "opCode": "call",
+              "operand": {
+                "target": {
+                  "declaringType": "IO",
+                  "name": "Println",
+                  "returnType": "void",
+                  "parameterTypes": [
+                    "object"
+                  ]
+                },
+                "arguments": []
+              }
+            },
+            {
+              "opCode": "local",
+              "operand": {
+                "name": "i",
+                "type": "int32"
+              }
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "0"
+            },
+            {
+              "opCode": "stloc",
+              "operand": "i"
+            },
+            {
+              "opCode": "ldloc",
+              "operand": "i"
+            },
+            {
+              "opCode": "ldc.i4",
+              "operand": "50000"
+            },
+            {
+              "opCode": "clt"
+            },
+            {
+              "opCode": "while",
+              "operand": {
+                "condition": "stack",
+                "body": [
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "call",
+                    "operand": {
+                      "target": {
+                        "declaringType": "IO",
+                        "name": "Println",
+                        "returnType": "void",
+                        "parameterTypes": [
+                          "object"
+                        ]
+                      },
+                      "arguments": []
+                    }
+                  },
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldc.i4",
+                    "operand": "1"
+                  },
+                  {
+                    "opCode": "add"
+                  },
+                  {
+                    "opCode": "stloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldloc",
+                    "operand": "i"
+                  },
+                  {
+                    "opCode": "ldc.i4",
+                    "operand": "50000"
+                  },
+                  {
+                    "opCode": "clt"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "constructors": []
+    }
+  ],
+  "functions": []
+}

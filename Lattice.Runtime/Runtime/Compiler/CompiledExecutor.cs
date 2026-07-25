@@ -58,6 +58,14 @@ public static class CompiledExecutor
                     s[sp++] = StackValue.FromFloat(cm.FloatTable[instr.Operand]);
                     ip++; break;
 
+                case OpCode.LdcI8:
+                    s[sp++] = StackValue.FromObject(new Value<long>(instr.Operand));
+                    ip++; break;
+
+                case OpCode.LdcR8:
+                    s[sp++] = StackValue.FromObject(new Value<double>(cm.DoubleTable[instr.Operand]));
+                    ip++; break;
+
                 case OpCode.Ldnull:
                     s[sp++] = StackValue.FromObject(null);
                     ip++; break;
@@ -132,6 +140,8 @@ public static class CompiledExecutor
                 case OpCode.Clt:
                 case OpCode.CgtUn:
                 case OpCode.CgeUn:
+                case OpCode.Cge:
+                case OpCode.Cle:
                 {
                     var b = s[--sp]; var a = s[--sp];
                     s[sp++] = CompareNoBox(a, b, instr.Opcode);
@@ -144,6 +154,18 @@ public static class CompiledExecutor
                     s[sp++] = v.Kind == StackValueKind.Bool
                         ? StackValue.FromBool(!v.AsBool)
                         : StackValue.FromBool(!v.IsTruthy);
+                    ip++; break;
+                }
+
+                case OpCode.Neg:
+                {
+                    var v = s[--sp];
+                    if (v.Kind == StackValueKind.Float)
+                        s[sp++] = StackValue.FromFloat(-v.AsFloat);
+                    else if (v.Kind == StackValueKind.Int)
+                        s[sp++] = StackValue.FromInt(-v.AsInt);
+                    else
+                        s[sp++] = StackValue.FromInt(0);
                     ip++; break;
                 }
 
@@ -318,7 +340,6 @@ public static class CompiledExecutor
                 {
                     var value = s[--sp];
                     var instance = s[--sp].AsObject as ManagedObject;
-                    // Fast path: use pre-split field name
                     string fieldName;
                     if (instr.Operand < cm.FieldNames.Length)
                         fieldName = cm.FieldNames[instr.Operand];
@@ -330,6 +351,144 @@ public static class CompiledExecutor
                     instance?.SetField(fieldName, value.ToObject());
                     ip++; break;
                 }
+
+                case OpCode.Ldsfld:
+                {
+                    string fieldName;
+                    if (instr.Operand < cm.FieldNames.Length)
+                        fieldName = cm.FieldNames[instr.Operand];
+                    else
+                    {
+                        fieldName = cm.StringTable[instr.Operand];
+                    }
+                    var key = fieldName.Contains(".") ? fieldName : "static." + fieldName;
+                    if (cpu.StaticFields.TryGetValue(key, out var sfVal))
+                        s[sp++] = RawToStackValue(sfVal);
+                    else
+                        s[sp++] = StackValue.FromObject(null);
+                    ip++; break;
+                }
+
+                case OpCode.Stsfld:
+                {
+                    var value = s[--sp];
+                    string fieldName;
+                    if (instr.Operand < cm.FieldNames.Length)
+                        fieldName = cm.FieldNames[instr.Operand];
+                    else
+                    {
+                        fieldName = cm.StringTable[instr.Operand];
+                    }
+                    var key = fieldName.Contains(".") ? fieldName : "static." + fieldName;
+                    cpu.StaticFields[key] = value.ToObject();
+                    ip++; break;
+                }
+
+                case OpCode.Newarr:
+                    s[sp++] = StackValue.FromObject(new List<object?>());
+                    ip++; break;
+
+                case OpCode.Ldelem:
+                {
+                    var index = s[--sp].AsInt;
+                    var arr = s[--sp].AsObject as List<object?>;
+                    if (arr != null && index >= 0 && index < arr.Count)
+                        s[sp++] = RawToStackValue(arr[index]);
+                    else
+                        s[sp++] = StackValue.FromObject(null);
+                    ip++; break;
+                }
+
+                case OpCode.Stelem:
+                {
+                    var value = s[--sp];
+                    var index = s[--sp].AsInt;
+                    var arr = s[--sp].AsObject as List<object?>;
+                    if (arr != null)
+                    {
+                        if (index >= arr.Count)
+                        {
+                            while (arr.Count <= index) arr.Add(null);
+                        }
+                        arr[index] = value.ToObject();
+                    }
+                    ip++; break;
+                }
+
+                case OpCode.Castclass:
+                {
+                    var obj = s[sp - 1].AsObject as ManagedObject;
+                    if (obj == null)
+                    {
+                        // leave on stack, runtime will check
+                    }
+                    ip++; break;
+                }
+
+                case OpCode.Isinst:
+                {
+                    var obj = s[--sp].AsObject as ManagedObject;
+                    s[sp++] = obj != null ? StackValue.FromBool(true) : StackValue.FromBool(false);
+                    ip++; break;
+                }
+
+                case OpCode.Conv:
+                {
+                    var val = s[--sp];
+                    string targetType;
+                    if (instr.Operand < cm.FieldNames.Length)
+                        targetType = cm.FieldNames[instr.Operand];
+                    else
+                        targetType = cm.StringTable[instr.Operand] ?? "int32";
+                    var raw = val.ToObject();
+                    switch (targetType.ToLowerInvariant())
+                    {
+                        case "int32":
+                        case "int":
+                            s[sp++] = StackValue.FromInt(raw != null ? Convert.ToInt32(raw) : 0);
+                            break;
+                        case "float32":
+                        case "single":
+                        case "float":
+                            s[sp++] = StackValue.FromFloat(raw != null ? Convert.ToSingle(raw) : 0f);
+                            break;
+                        case "float64":
+                        case "double":
+                            s[sp++] = StackValue.FromObject(new Value<double>(raw != null ? Convert.ToDouble(raw) : 0.0));
+                            break;
+                        case "int64":
+                        case "long":
+                            s[sp++] = StackValue.FromObject(new Value<long>(raw != null ? Convert.ToInt64(raw) : 0L));
+                            break;
+                        case "bool":
+                        case "boolean":
+                            s[sp++] = StackValue.FromBool(raw != null && Convert.ToBoolean(raw));
+                            break;
+                        case "string":
+                            s[sp++] = StackValue.FromObject(raw?.ToString() ?? "");
+                            break;
+                        default:
+                            s[sp++] = val;
+                            break;
+                    }
+                    ip++; break;
+                }
+
+                case OpCode.Nop:
+                    ip++; break;
+
+                case OpCode.Throw:
+                {
+                    var ex = s[--sp].ToObject();
+                    throw new RuntimeException(ex?.ToString() ?? "exception thrown", "");
+                }
+
+                case OpCode.Try:
+                    ip++; break;
+
+                case OpCode.Break:
+                case OpCode.Continue:
+                    ip++; break;
 
                 default:
                     ip++; break;
@@ -365,6 +524,8 @@ public static class CompiledExecutor
                 OpCode.Clt => ia < ib,
                 OpCode.CgtUn => ((uint)ia) > ((uint)ib),
                 OpCode.CgeUn => ((uint)ia) >= ((uint)ib),
+                OpCode.Cge => ia >= ib,
+                OpCode.Cle => ia <= ib,
                 _ => false
             };
             return StackValue.FromBool(result);
@@ -387,6 +548,8 @@ public static class CompiledExecutor
                     OpCode.Clt => !nan && fa < fb,
                     OpCode.CgtUn => nan || fa > fb,
                     OpCode.CgeUn => nan || fa >= fb,
+                    OpCode.Cge => !nan && fa >= fb,
+                    OpCode.Cle => !nan && fa <= fb,
                     _ => false
                 };
             }
@@ -406,6 +569,8 @@ public static class CompiledExecutor
             OpCode.Clt => cmp < 0,
             OpCode.CgtUn => CompareUnsigned(aObj, bObj) > 0,
             OpCode.CgeUn => CompareUnsigned(aObj, bObj) >= 0,
+            OpCode.Cge => cmp >= 0,
+            OpCode.Cle => cmp <= 0,
             _ => false
         };
         return StackValue.FromBool(result);

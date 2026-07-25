@@ -8,7 +8,6 @@ public static class BytecodeCompiler
 {
     public static CompiledMethod Compile(MethodNode method)
     {
-        // Build local variable index map
         var localNames = new List<string>();
         var localNameMap = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var l in method.Locals)
@@ -22,14 +21,17 @@ public static class BytecodeCompiler
 
         var argNames = method.Parameters.Select(p => p.Name).ToArray();
 
-        // Constant tables
         var stringTable = new List<string>();
         var floatTable = new List<float>();
+        var doubleTable = new List<double>();
         var stringIndexMap = new Dictionary<string, int>(StringComparer.Ordinal);
-        var floatIndexMap = new Dictionary<int, int>(); // int32 bits -> index
+        var floatIndexMap = new Dictionary<int, int>();
+        var doubleIndexMap = new Dictionary<long, int>();
 
         var callTargets = new List<CallInstruction>();
         var newObjTargets = new List<NewObjInstruction>();
+
+        Stack<(int loopStartIP, int endPatchIP)> loopStack = new();
 
         int GetStringIdx(string s)
         {
@@ -47,6 +49,16 @@ public static class BytecodeCompiler
             idx = floatTable.Count;
             floatTable.Add(f);
             floatIndexMap[bits] = idx;
+            return idx;
+        }
+
+        int GetDoubleIdx(double d)
+        {
+            var bits = BitConverter.DoubleToInt64Bits(d);
+            if (doubleIndexMap.TryGetValue(bits, out var idx)) return idx;
+            idx = doubleTable.Count;
+            doubleTable.Add(d);
+            doubleIndexMap[bits] = idx;
             return idx;
         }
 
@@ -81,8 +93,6 @@ public static class BytecodeCompiler
             return -1;
         }
 
-        // ── Statement compilation ──────────────────────────────────────
-
         void CompileInstructionStmt(InstructionStatement stmt)
         {
             var instr = stmt.Instruction;
@@ -102,8 +112,20 @@ public static class BytecodeCompiler
                     case OpCode.LdcI4:
                         Emit(OpCode.LdcI4, int.Parse(simple.Operand!));
                         break;
+                    case OpCode.LdcI8:
+                        Emit(OpCode.LdcI8, (int)long.Parse(simple.Operand!));
+                        break;
                     case OpCode.LdcR4:
                         Emit(OpCode.LdcR4, GetFloatIdx(float.Parse(simple.Operand!)));
+                        break;
+                    case OpCode.LdcR8:
+                        Emit(OpCode.LdcR8, GetDoubleIdx(double.Parse(simple.Operand!)));
+                        break;
+                    case OpCode.Ldc:
+                        if (simple.Operand != null && long.TryParse(simple.Operand, out var lval))
+                            Emit(OpCode.LdcI8, (int)lval);
+                        else
+                            Emit(OpCode.Ldnull);
                         break;
                     case OpCode.Ldnull:       Emit(OpCode.Ldnull); break;
                     case OpCode.Ldloc:        Emit(OpCode.Ldloc, ResolveLocal(simple.Operand!)); break;
@@ -112,10 +134,42 @@ public static class BytecodeCompiler
                     case OpCode.Starg:        Emit(OpCode.Starg, ResolveArg(simple.Operand!)); break;
                     case OpCode.Dup:          Emit(OpCode.Dup); break;
                     case OpCode.Pop:          Emit(OpCode.Pop); break;
+                    case OpCode.Nop:          Emit(OpCode.Nop); break;
                     case OpCode.Ret:          Emit(OpCode.Ret); break;
                     case OpCode.Ldfld:        Emit(OpCode.Ldfld, GetStringIdx(simple.Operand!)); break;
                     case OpCode.Stfld:        Emit(OpCode.Stfld, GetStringIdx(simple.Operand!)); break;
-                    default:                  Emit(simple.OpCode); break;
+                    case OpCode.Ldsfld:       Emit(OpCode.Ldsfld, GetStringIdx(simple.Operand!)); break;
+                    case OpCode.Stsfld:       Emit(OpCode.Stsfld, GetStringIdx(simple.Operand!)); break;
+                    case OpCode.Newarr:       Emit(OpCode.Newarr); break;
+                    case OpCode.Ldelem:       Emit(OpCode.Ldelem); break;
+                    case OpCode.Stelem:       Emit(OpCode.Stelem); break;
+                    case OpCode.Castclass:    Emit(OpCode.Castclass); break;
+                    case OpCode.Isinst:       Emit(OpCode.Isinst); break;
+                    case OpCode.Neg:          Emit(OpCode.Neg); break;
+                    case OpCode.Not:          Emit(OpCode.Not); break;
+                    case OpCode.Conv:         Emit(OpCode.Conv, GetStringIdx(simple.Operand ?? "int32")); break;
+                    case OpCode.Throw:        Emit(OpCode.Throw); break;
+                    case OpCode.Try:          Emit(OpCode.Try); break;
+
+                    case OpCode.Break:
+                        if (loopStack.Count > 0)
+                        {
+                            var (_, endPatchIP) = loopStack.Peek();
+                            Emit(OpCode.Br, endPatchIP);
+                        }
+                        break;
+
+                    case OpCode.Continue:
+                        if (loopStack.Count > 0)
+                        {
+                            var (loopStartIP, _) = loopStack.Peek();
+                            Emit(OpCode.Br, loopStartIP);
+                        }
+                        break;
+
+                    default:
+                        Emit(simple.OpCode);
+                        break;
                 }
             }
             else if (instr is CallInstruction callInstr)
@@ -129,30 +183,6 @@ public static class BytecodeCompiler
                 newObjTargets.Add(newObjInstr);
             }
         }
-
-        // ── Block compilation with while/if grouping ───────────────────
-
-        // When we encounter a while/if, the preceding statements on the
-        // same source line are condition instructions. We group them at
-        // compile time so the bytecode has proper loop structure.
-        //
-        // while example:
-        //   ldloc i       ← condition (same source line as while)
-        //   ldc.i4 5      ← condition
-        //   clt           ← condition
-        //   while (stack) {
-        //     ...body...
-        //   }
-        //
-        // becomes bytecode:
-        //   LOOP:
-        //   ldloc i
-        //   ldc.i4 5
-        //   clt
-        //   brfalse END
-        //   ...body...
-        //   br LOOP
-        //   END:
 
         void CompileBlock(IReadOnlyList<Statement> statements)
         {
@@ -176,7 +206,7 @@ public static class BytecodeCompiler
                 }
                 else if (stmt is LocalDeclarationStatement)
                 {
-                    i++; // skip, already registered
+                    i++;
                 }
                 else
                 {
@@ -186,8 +216,6 @@ public static class BytecodeCompiler
             }
         }
 
-        // Identify condition instructions that precede a while/if statement.
-        // Returns the index of the first condition instruction (or stmtIndex if none).
         int FindConditionStart(int stmtIndex, IReadOnlyList<Statement> statements)
         {
             var loc = statements[stmtIndex].Location;
@@ -212,17 +240,30 @@ public static class BytecodeCompiler
 
             int loopStart = code.Count;
 
-            // Emit condition instructions
             for (int j = condStart; j < stmtIndex; j++)
                 CompileInstructionStmt((InstructionStatement)statements[j]);
 
             int brFalseIdx = Emit(OpCode.Brfalse, 0);
+            int endPatchIP = 0; // will be patched later
 
-            // Emit body
+            loopStack.Push((loopStart, endPatchIP));
+
             CompileBlock(whileStmt.Body.Statements);
+
+            var popped = loopStack.Pop();
+            endPatchIP = code.Count;
 
             Emit(OpCode.Br, loopStart);
             Patch(brFalseIdx, code.Count);
+
+            // Patch any break instructions that referred to the initial endPatchIP (0)
+            for (int i = brFalseIdx + 1; i < code.Count - 1; i++)
+            {
+                if (code[i].Opcode == OpCode.Br && code[i].Operand == 0)
+                {
+                    Patch(i, code.Count);
+                }
+            }
 
             return stmtIndex + 1;
         }
@@ -231,13 +272,11 @@ public static class BytecodeCompiler
         {
             int condStart = FindConditionStart(stmtIndex, statements);
 
-            // Emit condition instructions
             for (int j = condStart; j < stmtIndex; j++)
                 CompileInstructionStmt((InstructionStatement)statements[j]);
 
             int brFalseIdx = Emit(OpCode.Brfalse, 0);
 
-            // Then block
             CompileBlock(ifStmt.Then.Statements);
 
             if (ifStmt.Else != null && ifStmt.Else.Statements.Count > 0)
@@ -267,6 +306,7 @@ public static class BytecodeCompiler
             Code = code.ToArray(),
             StringTable = stringTable.ToArray(),
             FloatTable = floatTable.ToArray(),
+            DoubleTable = doubleTable.ToArray(),
             LocalNames = localNames.ToArray(),
             ArgNames = argNames,
             LocalNameToIndex = localNames.Select((_, i) => i).ToArray(),

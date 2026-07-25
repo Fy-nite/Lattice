@@ -1,0 +1,5 @@
+Module: test (v1.0.0)
+----------------------------------------
+Type: Program
+  Main                      : 9 instructions
+

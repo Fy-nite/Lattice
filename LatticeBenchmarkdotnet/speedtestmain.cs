@@ -838,10 +838,10 @@ public class LatticeBenchmarks
 
     private static long MixedOpsCs(int n)
     {
-        long count = 0;
-        for (int i = 0; i < n; i++)
+        int count = 0;
+        for (long i = 0; i < n; i++)
         {
-            long a = (long)i * 3 + 7;
+            long a = i * 3 + 7;
             if (a % 7 == 0) count++;
         }
         return count;

@@ -14,6 +14,7 @@ public sealed class CompiledMethod
     public CompactInstr[] Code { get; set; } = [];
     public string[] StringTable { get; set; } = [];
     public float[] FloatTable { get; set; } = [];
+    public double[] DoubleTable { get; set; } = [];
 
     public int[] LocalNameToIndex { get; set; } = [];
     public string[] LocalNames { get; set; } = [];

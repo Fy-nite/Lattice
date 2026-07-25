@@ -1,0 +1,285 @@
+        module Bench
+
+        class Helper {
+            static method Add(a: int32, b: int32) -> int32 {
+                ldarg a
+                ldarg b
+                add
+                ret
+            }
+
+            static method Identity(x: int32) -> int32 {
+                ldarg x
+                ret
+            }
+
+            static method Compute(a: int32, b: int32) -> int32 {
+                ldarg a
+                ldarg b
+                mul
+                ldarg a
+                add
+                ret
+            }
+        }
+
+        class Program {
+            static method SumLoop(n: int32) -> int32 {
+                local sum: int32
+                local i: int32
+                ldc.i4 0
+                stloc sum
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    ldloc sum
+                    ldloc i
+                    add
+                    stloc sum
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc sum
+                ret
+            }
+
+            static method BranchLoop(n: int32) -> int32 {
+                local count: int32
+                local i: int32
+                local r: int32
+                ldc.i4 0
+                stloc count
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    ldloc i
+                    ldc.i4 2
+                    rem
+                    stloc r
+                    ldloc r
+                    ldc.i4 0
+                    ceq
+                    if (stack) {
+                        ldloc count
+                        ldc.i4 1
+                        add
+                        stloc count
+                    }
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc count
+                ret
+            }
+
+            static method Fib(n: int32) -> int32 {
+                ldarg n
+                ldc.i4 2
+                clt
+                if (stack) {
+                    ldarg n
+                    ret
+                }
+                ldarg n
+                ldc.i4 1
+                sub
+                call Program.Fib(int32) -> int32
+                ldarg n
+                ldc.i4 2
+                sub
+                call Program.Fib(int32) -> int32
+                add
+                ret
+            }
+
+            static method FloatLoop(n: int32) -> float32 {
+                local sum: float32
+                local i: int32
+                ldc.r4 0.0
+                stloc sum
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    ldloc sum
+                    ldc.r4 1.5
+                    add
+                    stloc sum
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc sum
+                ret
+            }
+
+            static method StringLoop(n: int32) -> int32 {
+                local count: int32
+                local i: int32
+                ldc.i4 0
+                stloc count
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    ldstr "hello"
+                    ldstr "hello"
+                    ceq
+                    if (stack) {
+                        ldloc count
+                        ldc.i4 1
+                        add
+                        stloc count
+                    }
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc count
+                ret
+            }
+
+            static method DeepCall(n: int32) -> int32 {
+                local sum: int32
+                local i: int32
+                ldc.i4 0
+                stloc sum
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    ldloc sum
+                    ldloc i
+                    call Helper.Add(int32, int32) -> int32
+                    stloc sum
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc sum
+                ret
+            }
+
+            static method MixedOps(n: int32) -> int32 {
+                local count: int32
+                local i: int32
+                local a: int32
+                local b: int32
+                local r: int32
+                ldc.i4 0
+                stloc count
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    ldloc i
+                    ldc.i4 3
+                    mul
+                    stloc a
+                    ldloc a
+                    ldc.i4 7
+                    add
+                    stloc b
+                    ldloc b
+                    ldc.i4 7
+                    rem
+                    stloc r
+                    ldloc r
+                    ldc.i4 0
+                    ceq
+                    if (stack) {
+                        ldloc count
+                        ldc.i4 1
+                        add
+                        stloc count
+                    }
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc count
+                ret
+            }
+        }
+
+        class BenchObj {
+            public field X : int32
+
+            constructor() {
+                ret
+            }
+
+            static method FieldLoop(n: int32) -> int32 {
+                local sum: int32
+                local i: int32
+                local obj: BenchObj
+                ldc.i4 0
+                stloc sum
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    newobj BenchObj.constructor()
+                    stloc obj
+                    ldloc obj
+                    ldc.i4 42
+                    stfld BenchObj.X
+                    ldloc obj
+                    ldfld BenchObj.X
+                    ldloc sum
+                    add
+                    stloc sum
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc sum
+                ret
+            }
+        }

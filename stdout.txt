@@ -1,0 +1,92 @@
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj : warning NU1603: ObjectIR.Core depends on MongoDB.Bson (>= 3.7.3) but MongoDB.Bson 3.7.3 was not found. MongoDB.Bson 3.8.0 was resolved instead. [D:\git\Lattice\Lattice.Runtime\Lattice.Runtime.csproj]
+D:\git\Lattice\Lattice.Runtime\Lattice.Runtime.csproj : warning NU1603: ObjectIR.Core depends on MongoDB.Bson (>= 3.7.3) but MongoDB.Bson 3.7.3 was not found. MongoDB.Bson 3.8.0 was resolved instead.
+D:\git\Lattice\libs\ObjectIR.Stdlib\Libs\ObjectIR.Core\ObjectIR.Core.csproj : warning NU1510: PackageReference Microsoft.CSharp will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [D:\git\Lattice\Lattice.Runtime\Lattice.Runtime.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj : warning NU1603: ObjectIR.Core depends on MongoDB.Bson (>= 3.7.3) but MongoDB.Bson 3.7.3 was not found. MongoDB.Bson 3.8.0 was resolved instead. [D:\git\Lattice\Lattice.Runtime\Lattice.Runtime.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\Libs\ObjectIR.Core\ObjectIR.Core.csproj : warning NU1603: ObjectIR.Core depends on MongoDB.Bson (>= 3.7.3) but MongoDB.Bson 3.7.3 was not found. MongoDB.Bson 3.8.0 was resolved instead. [D:\git\Lattice\Lattice.Runtime\Lattice.Runtime.csproj]
+D:\git\Lattice\Lattice.Runtime\Lattice.Runtime.csproj : warning NU1603: ObjectIR.Core depends on MongoDB.Bson (>= 3.7.3) but MongoDB.Bson 3.7.3 was not found. MongoDB.Bson 3.8.0 was resolved instead.
+D:\git\Lattice\libs\ObjectIR.Stdlib\Libs\ObjectIR.Core\ObjectIR.Core.csproj : warning NU1510: PackageReference Microsoft.CSharp will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary. [TargetFramework=net10.0]
+D:\git\Lattice\libs\ObjectIR.Stdlib\Libs\ObjectIR.Core\ObjectIR.Core.csproj : warning NU1603: ObjectIR.Core depends on MongoDB.Bson (>= 3.7.3) but MongoDB.Bson 3.7.3 was not found. MongoDB.Bson 3.8.0 was resolved instead. [TargetFramework=net10.0]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj : warning NU1603: ObjectIR.Core depends on MongoDB.Bson (>= 3.7.3) but MongoDB.Bson 3.7.3 was not found. MongoDB.Bson 3.8.0 was resolved instead.
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj : warning NU1603: ObjectIR.Core depends on MongoDB.Bson (>= 3.7.3) but MongoDB.Bson 3.7.3 was not found. MongoDB.Bson 3.8.0 was resolved instead.
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\Computer\IO.cs(7,34): warning CS8618: Non-nullable property 'In' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\Computer\IO.cs(8,34): warning CS8618: Non-nullable property 'Out' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\Computer\IO.cs(9,34): warning CS8618: Non-nullable property 'Error' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the property as nullable. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\Core\AnyValue.cs(33,20): warning CS8603: Possible null reference return. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.StdLib.Core\ObjectIR.StdLib.Core.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Memory\Reflection.cs(13,38): warning CS0108: 'Reflection.GetType()' hides inherited member 'object.GetType()'. Use the new keyword if hiding was intended. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Memory\Reflection.cs(17,32): warning CS8602: Dereference of a possibly null reference. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Memory\Reflection.cs(18,51): warning CS8602: Dereference of a possibly null reference. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Computer\IOHook.cs(23,46): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Computer\IOHook.cs(32,46): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Computer\IOHook.cs(39,60): warning CS8604: Possible null reference argument for parameter 'data' in 'Value<object>.Value(object data)'. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\DelegateHook.cs(29,95): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\DelegateHook.cs(34,70): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\DelegateHook.cs(43,48): warning CS8601: Possible null reference assignment. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\DelegateHook.cs(47,46): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\FuncHook.cs(30,95): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\FuncHook.cs(35,70): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\FuncHook.cs(58,46): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\FuncHook.cs(64,54): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\FuncHook.cs(84,34): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\ActionHook.cs(28,95): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\ActionHook.cs(33,70): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\ActionHook.cs(78,46): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\ActionHook.cs(84,66): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Generics\ActionHook.cs(104,46): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Threading\ThreadHook.cs(71,46): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\Threading\ThreadHook.cs(84,46): warning CS8625: Cannot convert null literal to non-nullable reference type. [D:\git\Lattice\libs\ObjectIR.Stdlib\ObjectIR.Stdlib\ObjectIR.Stdlib.csproj]
+1
+--- Constants ---
+42
+1234567890123
+3.14
+2.718281828459045
+hello
+99
+--- Args and Locals ---
+10
+15
+--- Instance Fields ---
+777
+widget
+999
+--- Static Fields ---
+42
+--- Arithmetic ---
+130
+30
+42
+33
+1
+-42
+--- Logical ---
+True
+--- Comparison ---
+True
+True
+True
+True
+True
+True
+--- Type Conversion ---
+65
+--- Type Testing ---
+True
+--- Arrays ---
+99
+--- Method Calls ---
+30
+Item-object
+--- If / Else ---
+5 < 10 (expected)
+15 >= 10 (expected)
+--- While / Break / Continue ---
+0
+1
+2
+4
+5
+6
+7
+--- Throw (will be caught by host) ---
+(bare try is a no-op without structured operand)
+--- Demo Complete ---

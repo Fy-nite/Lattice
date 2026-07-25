@@ -23,6 +23,7 @@ public class CPU : IProgramLoader
 
     public bool Debug { get; set; }
     public ExperimentalFeature Features { get; set; }
+    public Dictionary<string, object?> StaticFields { get; set; } = new();
 
     private lattice.Runtime.Debugging.Debugger _debugger = new lattice.Runtime.Debugging.Debugger();
 
@@ -558,17 +559,220 @@ public class CPU : IProgramLoader
                     case OpCode.Not:
                         {
                             var a = CurrentFrame.EvaluationStack.Pop();
-                            if (Unwrap(a) is bool boolVal)
+                            var raw = Unwrap(a);
+                            if (raw is bool boolVal)
                             {
                                 CurrentFrame.EvaluationStack.Push(new Value<bool>(!boolVal));
+                            }
+                            else
+                            {
+                                var isTruthy = raw switch
+                                {
+                                    null => false,
+                                    int iv => iv != 0,
+                                    long lv => lv != 0,
+                                    float fv => fv != 0f,
+                                    double dv => dv != 0.0,
+                                    string sv => !string.IsNullOrEmpty(sv),
+                                    _ => true
+                                };
+                                CurrentFrame.EvaluationStack.Push(new Value<bool>(!isTruthy));
                             }
                             break;
                         }
 
+                    case OpCode.Nop:
+                        break;
+
+                    case OpCode.Neg:
+                        {
+                            var v = CurrentFrame.EvaluationStack.Pop();
+                            var uv = Unwrap(v);
+                            if (uv is double d)
+                                CurrentFrame.EvaluationStack.Push(new Value<double>(-d));
+                            else if (uv is float f)
+                                CurrentFrame.EvaluationStack.Push(new Value<float>(-f));
+                            else if (uv is long l)
+                                CurrentFrame.EvaluationStack.Push(new Value<long>(-l));
+                            else
+                                CurrentFrame.EvaluationStack.Push(new Value<int>(-Convert.ToInt32(uv)));
+                            break;
+                        }
+
+                    case OpCode.LdcI8:
+                        CurrentFrame.EvaluationStack.Push(new Value<long>(long.Parse(simple.Operand!)));
+                        break;
+
+                    case OpCode.LdcR8:
+                        CurrentFrame.EvaluationStack.Push(new Value<double>(double.Parse(simple.Operand!)));
+                        break;
+
+                    case OpCode.Ldc:
+                        {
+                            var operand = simple.Operand;
+                            if (operand != null && long.TryParse(operand, out var lval))
+                                CurrentFrame.EvaluationStack.Push(new Value<long>(lval));
+                            else if (operand != null && double.TryParse(operand, out var dval))
+                                CurrentFrame.EvaluationStack.Push(new Value<double>(dval));
+                            else
+                                CurrentFrame.EvaluationStack.Push(new Value<long>(0));
+                            break;
+                        }
+
+                    case OpCode.Cge:
+                        {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cge requires 2 elements on stack", CurrentFrame.GetStackTrace());
+                            var (a, b) = PopTwo();
+                            CurrentFrame.EvaluationStack.Push(new Value<bool>(Compare(Unwrap(a), Unwrap(b)) >= 0));
+                            break;
+                        }
+
+                    case OpCode.Cle:
+                        {
+                            if (CurrentFrame.EvaluationStack.Count < 2) throw new RuntimeException("cle requires 2 elements on stack", CurrentFrame.GetStackTrace());
+                            var (a, b) = PopTwo();
+                            CurrentFrame.EvaluationStack.Push(new Value<bool>(Compare(Unwrap(a), Unwrap(b)) <= 0));
+                            break;
+                        }
+
+                    case OpCode.Conv:
+                        {
+                            var val = CurrentFrame.EvaluationStack.Pop();
+                            var raw = Unwrap(val);
+                            var targetType = simple.Operand ?? "int32";
+                            switch (targetType.ToLowerInvariant())
+                            {
+                                case "int32":
+                                case "int":
+                                    CurrentFrame.EvaluationStack.Push(new Value<int>(Convert.ToInt32(raw)));
+                                    break;
+                                case "int64":
+                                case "long":
+                                    CurrentFrame.EvaluationStack.Push(new Value<long>(Convert.ToInt64(raw)));
+                                    break;
+                                case "float32":
+                                case "single":
+                                case "float":
+                                    CurrentFrame.EvaluationStack.Push(new Value<float>(Convert.ToSingle(raw)));
+                                    break;
+                                case "float64":
+                                case "double":
+                                    CurrentFrame.EvaluationStack.Push(new Value<double>(Convert.ToDouble(raw)));
+                                    break;
+                                case "uint32":
+                                    CurrentFrame.EvaluationStack.Push(new Value<long>(Convert.ToUInt32(raw)));
+                                    break;
+                                case "uint64":
+                                    CurrentFrame.EvaluationStack.Push(new Value<long>((long)Convert.ToUInt64(raw)));
+                                    break;
+                                case "string":
+                                    CurrentFrame.EvaluationStack.Push(new Value<string>(raw?.ToString() ?? ""));
+                                    break;
+                                case "bool":
+                                case "boolean":
+                                    CurrentFrame.EvaluationStack.Push(new Value<bool>(Convert.ToBoolean(raw)));
+                                    break;
+                                default:
+                                    CurrentFrame.EvaluationStack.Push(val);
+                                    break;
+                            }
+                            break;
+                        }
+
+                    case OpCode.Newarr:
+                        CurrentFrame.EvaluationStack.Push(new List<object?>());
+                        break;
+
+                    case OpCode.Ldelem:
+                        {
+                            var index = Convert.ToInt32(Unwrap(CurrentFrame.EvaluationStack.Pop()));
+                            var arr = CurrentFrame.EvaluationStack.Pop() as List<object?>;
+                            if (arr == null) throw new RuntimeException("ldelem requires an array on stack", CurrentFrame.GetStackTrace());
+                            if (index < 0 || index >= arr.Count)
+                                CurrentFrame.EvaluationStack.Push(null);
+                            else
+                                CurrentFrame.EvaluationStack.Push(arr[index]);
+                            break;
+                        }
+
+                    case OpCode.Stelem:
+                        {
+                            var value = CurrentFrame.EvaluationStack.Pop();
+                            var index = Convert.ToInt32(Unwrap(CurrentFrame.EvaluationStack.Pop()));
+                            var arr = CurrentFrame.EvaluationStack.Pop() as List<object?>;
+                            if (arr == null) throw new RuntimeException("stelem requires an array on stack", CurrentFrame.GetStackTrace());
+                            if (index >= arr.Count)
+                            {
+                                while (arr.Count <= index) arr.Add(null);
+                            }
+                            arr[index] = value;
+                            break;
+                        }
+
+                    case OpCode.Castclass:
+                        {
+                            var obj = CurrentFrame.EvaluationStack.Peek() as ManagedObject;
+                            if (obj == null) throw new RuntimeException("castclass requires a managed object on stack", CurrentFrame.GetStackTrace());
+                            var typeName = simple.Operand ?? "";
+                            if (!string.Equals(obj.TypeName, typeName, StringComparison.Ordinal))
+                                throw new RuntimeException($"castclass failed: object is {obj.TypeName}, expected {typeName}", CurrentFrame.GetStackTrace());
+                            break;
+                        }
+
+                    case OpCode.Isinst:
+                        {
+                            var obj = CurrentFrame.EvaluationStack.Pop() as ManagedObject;
+                            if (obj != null && simple.Operand != null && string.Equals(obj.TypeName, simple.Operand, StringComparison.Ordinal))
+                                CurrentFrame.EvaluationStack.Push(new Value<bool>(true));
+                            else
+                                CurrentFrame.EvaluationStack.Push(new Value<bool>(false));
+                            break;
+                        }
+
+                    case OpCode.Ldsfld:
+                        {
+                            var fieldPath = simple.Operand ?? "";
+                            var key = fieldPath.Contains(".") ? fieldPath : "static." + fieldPath;
+                            if (StaticFields.TryGetValue(key, out var val))
+                                CurrentFrame.EvaluationStack.Push(val);
+                            else
+                                CurrentFrame.EvaluationStack.Push(null);
+                            break;
+                        }
+
+                    case OpCode.Stsfld:
+                        {
+                            var value = CurrentFrame.EvaluationStack.Pop();
+                            var fieldPath = simple.Operand ?? "";
+                            var key = fieldPath.Contains(".") ? fieldPath : "static." + fieldPath;
+                            StaticFields[key] = value;
+                            break;
+                        }
+
+                    case OpCode.Break:
+                        CurrentFrame.BreakRequested = true;
+                        break;
+
+                    case OpCode.Continue:
+                        CurrentFrame.ContinueRequested = true;
+                        break;
+
+                    case OpCode.Throw:
+                        {
+                            var ex = CurrentFrame.EvaluationStack.Pop();
+                            var msg = ex?.ToString() ?? "exception thrown";
+                            throw new RuntimeException(msg, CurrentFrame.GetStackTrace());
+                        }
+
+                    case OpCode.Try:
+                        // try is a no-op in the AST interpreter;
+                        // the canonical operand is a JSON object
+                        // { tryBlock: [], catchBlocks: [], finallyBlock: [] }
+                        // which is best expressed in JSON/FOB module formats.
+                        break;
+
                     default:
                         throw new OpCodeNotFoundException(OpCodeConverter.ToString(simple.OpCode), CurrentFrame.GetStackTrace());
-                        //Console.WriteLine(simple.OpCode, CurrentFrame.GetStackTrace());
-                        //break;
 
                 }
             }
@@ -637,8 +841,6 @@ public class CPU : IProgramLoader
         else if (ins is WhileStatement)
         {
             WhileStatement whileStmt = (WhileStatement)ins;
-            // The OIR "while (stack) { ... }" structure implies the condition is evaluated
-            // *before* the loop body. 
             
             // 1. Identify start of condition instructions
             int conditionStartIP = CurrentFrame.IP - 1;
@@ -652,26 +854,24 @@ public class CPU : IProgramLoader
                     conditionStartIP--;
                 }
             }
-            // conditionStartIP is now the index of the first condition instruction
 
-            // 2. Evaluate the condition (only if stack is not empty)
+            // 2. Evaluate the condition
             if (CurrentFrame.EvaluationStack.Count > 0 && EvaluateCondition(whileStmt.Condition, whileStmt.Location))
             {
-                // Execute the body
                 ExecuteBlock(whileStmt.Body);
                 
-                CurrentFrame.IP = conditionStartIP;
-            }
-            else
-            {
-                // Loop ended, clean up condition results if necessary.
-                // If the loop finished naturally, the condition result is popped by EvaluateCondition.
-                // If we fall through, we might need to pop it if it was evaluated just now.
-                if (CurrentFrame.EvaluationStack.Count > 0)
+                if (CurrentFrame.BreakRequested)
                 {
-                    // This is a safety check: if we're here, the condition evaluated to false.
-                    // We might need to pop the condition result.
-                    // CurrentFrame.EvaluationStack.Pop(); 
+                    CurrentFrame.BreakRequested = false;
+                }
+                else if (CurrentFrame.ContinueRequested)
+                {
+                    CurrentFrame.ContinueRequested = false;
+                    CurrentFrame.IP = conditionStartIP;
+                }
+                else
+                {
+                    CurrentFrame.IP = conditionStartIP;
                 }
             }
         }

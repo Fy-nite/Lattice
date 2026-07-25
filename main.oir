@@ -1,0 +1,26 @@
+module test version 1.0.0
+
+class Program
+{
+    static method Main() -> void {
+         ldstr "--- While loop counting to 5:"
+        call IO.Println(object) -> void
+        local i: int32
+        ldc.i4 0
+        stloc i
+        ldloc i
+        ldc.i4 50000
+        clt
+        while (stack) {
+            ldloc i
+            call IO.Println(object) -> void
+            ldloc i
+            ldc.i4 1
+            add
+            stloc i
+            ldloc i
+            ldc.i4 50000
+            clt
+        }
+    }
+}
