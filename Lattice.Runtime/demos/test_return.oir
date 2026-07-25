@@ -8,7 +8,7 @@ class Program {
 
     static method Main() -> void {
         call Program.GetValue() -> int32
-        call IO.Println(object) -> void
+        call IO.Println(int32) -> void
         ret
     }
 }

@@ -50,7 +50,7 @@ public static class CompiledExecutor
                     ip++; break;
 
                 case OpCode.LdcR4:
-                    s[sp++] = StackValue.FromFloat(BitConverter.Int32BitsToSingle(instr.Operand));
+                    s[sp++] = StackValue.FromFloat(cm.FloatTable[instr.Operand]);
                     ip++; break;
 
                 case OpCode.Ldnull:

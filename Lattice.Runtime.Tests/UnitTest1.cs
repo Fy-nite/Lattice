@@ -1,10 +1,1 @@
-﻿namespace Lattice.Runtime.Tests;
-
-public class UnitTest1
-{
-    [Fact]
-    public void Test1()
-    {
-
-    }
-}
+﻿// Placeholder removed — replaced by comprehensive test suites.

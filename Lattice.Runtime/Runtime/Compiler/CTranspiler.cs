@@ -142,7 +142,7 @@ public static partial class CTranspiler
                     break;
 
                 case IrOpCode.LdcR4:
-                    _expr.Push(BitConverter.Int32BitsToSingle(instr.Operand).ToString("G"));
+                    _expr.Push(_cm.FloatTable[instr.Operand].ToString("G"));
                     break;
 
                 case IrOpCode.Ldnull:

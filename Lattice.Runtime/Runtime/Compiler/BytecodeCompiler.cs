@@ -103,7 +103,7 @@ public static class BytecodeCompiler
                         Emit(OpCode.LdcI4, int.Parse(simple.Operand!));
                         break;
                     case OpCode.LdcR4:
-                        Emit(OpCode.LdcR4, BitConverter.SingleToInt32Bits(float.Parse(simple.Operand!)));
+                        Emit(OpCode.LdcR4, GetFloatIdx(float.Parse(simple.Operand!)));
                         break;
                     case OpCode.Ldnull:       Emit(OpCode.Ldnull); break;
                     case OpCode.Ldloc:        Emit(OpCode.Ldloc, ResolveLocal(simple.Operand!)); break;

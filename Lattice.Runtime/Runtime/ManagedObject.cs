@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using ObjectIR.Core.AST;
 
 namespace lattice.Core;
@@ -5,7 +6,7 @@ namespace lattice.Core;
 public class ManagedObject
 {
     public string TypeName { get; set; }
-    public Dictionary<string, object> Fields { get; set; } = new();
+    public ConcurrentDictionary<string, object> Fields { get; set; } = new();
     public Dictionary<string, MethodDTO> Methods { get; set; } = new();
     public Guid Id { get; } = Guid.NewGuid();
 
@@ -21,21 +22,7 @@ public class ManagedObject
 
     public void SetField(string name, object? value)
     {
-        if (value == null)
-        {
-            if (Fields.ContainsKey(name))
-                Fields[name] = null!;
-            else
-                Fields.Add(name, null!);
-        }
-        else if (Fields.ContainsKey(name))
-        {
-            Fields[name] = value;
-        }
-        else
-        {
-            Fields.Add(name, value);
-        }
+        Fields[name] = value!;
     }
 
     public bool HasMethod(string name) => Methods.ContainsKey(name);

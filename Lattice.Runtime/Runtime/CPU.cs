@@ -13,11 +13,7 @@ public class CPU : IProgramLoader
 {
     public lattice.Runtime.Scheduler Scheduler { get; set; }
     public List<ModuleNode> Modules = new();
-    private Dictionary<MethodNode, CompiledMethod> _compiled = new();
-    private readonly ConcurrentDictionary<MethodNode, JittedMethod?> _jitDelegates = new();
-    private readonly ConcurrentDictionary<MethodNode, int> _executionCounts = new();
-    private const int JIT_HOT_THRESHOLD = 1000;
-
+    public CompilationCache Cache { get; set; } = new();
     public ModuleNode program;
 
     public CallStack CurrentFrame;
@@ -91,10 +87,11 @@ public class CPU : IProgramLoader
         var newCpu = new CPU
         {
             program = this.program,
-            Modules = new List<ModuleNode>(this.Modules), // Share loaded modules
+            Modules = new List<ModuleNode>(this.Modules),
             Debug = this.Debug,
             MaxStackDepth = this.MaxStackDepth,
-            Scheduler = this.Scheduler
+            Scheduler = this.Scheduler,
+            Cache = this.Cache
         };
 
         // Resolve method from delegate
@@ -910,9 +907,9 @@ public class CPU : IProgramLoader
         {
             foreach (var method in cls.Methods)
             {
-                if (!_compiled.ContainsKey(method) && method.Body?.Statements.Count > 0)
+                if (Cache.GetCompiled(method) == null && method.Body?.Statements.Count > 0)
                 {
-                    _compiled[method] = BytecodeCompiler.Compile(method);
+                    Cache.CompileAndStore(method);
                 }
             }
             foreach (var ctor in cls.Constructors)
@@ -924,25 +921,24 @@ public class CPU : IProgramLoader
 
     public CompiledMethod? GetCompiled(MethodNode method)
     {
-        _compiled.TryGetValue(method, out var cm);
-        return cm;
+        return Cache.GetCompiled(method);
     }
 
     private void QueueJitCompile(MethodNode method, CompiledMethod cm)
     {
-        if (!_jitDelegates.TryAdd(method, null)) return;
+        if (!Cache.TryAddJit(method)) return;
 
         ThreadPool.QueueUserWorkItem(_ =>
         {
             try
             {
                 var jit = JitCompiler.GetOrCompile(cm);
-                _jitDelegates[method] = jit;
+                Cache.SetJit(method, jit);
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[JIT] Background compile failed for {method.Name}: {ex.Message}");
-                _jitDelegates.TryRemove(method, out JittedMethod? _);
+                Cache.RemoveJit(method);
             }
         });
     }
@@ -965,17 +961,17 @@ public class CPU : IProgramLoader
             throw new MethodResolutionException(methodPath, CurrentFrame?.GetStackTrace() ?? "");
 
         // Try JIT native path
-        if (_compiled.TryGetValue(method, out var cmJit) && _jitDelegates.TryGetValue(method, out var jitDel) && jitDel != null)
+        var cmJit = Cache.GetCompiled(method);
+        var jitDel = cmJit != null ? Cache.GetJit(method) : null;
+        if (cmJit != null && jitDel != null)
         {
-            var rawArgs = new StackValue[method.Parameters.Count];
-            for (int i = 0; i < rawArgs.Length; i++)
-                rawArgs[i] = i < args.Length
-                    ? CompiledExecutor.RawToStackValue(args[i])
-                    : default;
-            var jitResult = jitDel(rawArgs, this, cmJit);
+            var jitArgs = new object?[method.Parameters.Count];
+            for (int i = 0; i < jitArgs.Length; i++)
+                jitArgs[i] = i < args.Length ? args[i] : null;
+            var jitResult = jitDel(jitArgs, this, cmJit);
             if (cmJit.ReturnsValue)
             {
-                var unwrapped = jitResult.ToObject();
+                var unwrapped = jitResult;
                 if (unwrapped != null && typeof(T) != unwrapped.GetType())
                     return (T)Convert.ChangeType(unwrapped, typeof(T));
                 return (T)(unwrapped ?? default(T?)!);
@@ -984,11 +980,12 @@ public class CPU : IProgramLoader
         }
 
         // Try compiled interpreter path
-        if (_compiled.TryGetValue(method, out var cm))
+        var cm = Cache.GetCompiled(method);
+        if (cm != null)
         {
             // Count execution for tiered compilation
-            int count = _executionCounts.AddOrUpdate(method, 1, (_, c) => c + 1);
-            if (count == JIT_HOT_THRESHOLD)
+            int count = Cache.IncrementExecutionCount(method);
+            if (count == 1000)
                 QueueJitCompile(method, cm);
             var rawArgs = new StackValue[method.Parameters.Count];
             for (int i = 0; i < rawArgs.Length; i++)
