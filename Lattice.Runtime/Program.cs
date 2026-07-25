@@ -161,7 +161,7 @@ class Program
             NativeRegistry.RegisterFromAssembly(typeof(ObjectIR.Stdlib.System.IO).Assembly);
             NativeRegistry.RegisterFromAssembly(typeof(Program).Assembly);
 
-            CPU mainCpu = new();
+            CPU mainCpu = new(features);
             mainCpu.Scheduler = scheduler;
             mainCpu.Debug = opts.Debug;
 

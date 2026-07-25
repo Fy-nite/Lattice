@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <variant>
@@ -9,11 +10,72 @@
 
 namespace ObjectIR
 {
+    // -----------------------------------------------------------------------
+    // IO — console input / output
+    // -----------------------------------------------------------------------
     class IO
     {
         public: 
             static void Println(const std::string value);
             static void Print(const std::string value);
+            static std::string Readln();
+    };
+
+    // -----------------------------------------------------------------------
+    // Thread — threading / sleeping
+    // -----------------------------------------------------------------------
+    class Thread
+    {
+        public:
+            static void Spawn(void* delegate_);
+            static void Sleep(int32_t ms);
+    };
+
+    // -----------------------------------------------------------------------
+    // Action — a delegate that takes no arguments and returns void
+    // -----------------------------------------------------------------------
+    class Action
+    {
+        public:
+            // constructor(object instance, string methodName)
+            void* instance;
+            std::string methodName;
+            void Invoke();
+    };
+
+    // -----------------------------------------------------------------------
+    // Func — a delegate that takes no arguments and returns an object
+    // -----------------------------------------------------------------------
+    class Func
+    {
+        public:
+            // constructor(object instance, string methodName)
+            void* instance;
+            std::string methodName;
+            void* Invoke();
+    };
+
+    // -----------------------------------------------------------------------
+    // Delegate — a generic delegate with target + methodName fields
+    // -----------------------------------------------------------------------
+    class Delegate
+    {
+        public:
+            // constructor(object target, string methodName)
+            void* Target;
+            std::string MethodName;
+    };
+
+    // -----------------------------------------------------------------------
+    // Malloc — heap allocation and memory inspection
+    // -----------------------------------------------------------------------
+    class Malloc
+    {
+        public:
+            static void* Alloc(const std::string typeName);
+            static int32_t GetUsedMemory();
+            static int32_t GetFreeMemory();
+            static void Reset();
     };
 }
 // ---------------------------------------------------------------------------

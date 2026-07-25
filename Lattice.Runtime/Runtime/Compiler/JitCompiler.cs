@@ -33,6 +33,7 @@ public static class JitCompiler
     private static readonly MethodInfo _jitNewobj = typeof(JitCompiler).GetMethod(nameof(JitNewobj), BindingFlags.Static | BindingFlags.Public)!;
     private static readonly MethodInfo _jitCall = typeof(JitCompiler).GetMethod(nameof(JitCall), BindingFlags.Static | BindingFlags.Public)!;
     private static readonly MethodInfo _jitCallSimple = typeof(JitCompiler).GetMethod(nameof(JitCallSimple), BindingFlags.Static | BindingFlags.Public)!;
+    private static readonly MethodInfo _jitCallDirect = typeof(JitCompiler).GetMethod(nameof(JitCallDirect), BindingFlags.Static | BindingFlags.Public)!;
     private static readonly MethodInfo _jitNewobjSimple = typeof(JitCompiler).GetMethod(nameof(JitNewobjSimple), BindingFlags.Static | BindingFlags.Public)!;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -48,8 +49,9 @@ public static class JitCompiler
     {
         var method = cm.SourceMethod;
         if (method.NativeImpl != null) return null;
-        if (!CanEmitIntOnly(cm, method)) return EmitGeneral(cm, method);
-        return EmitIntOnly(cm, method) ?? EmitGeneral(cm, method);
+        if (CanEmitIntOnly(cm, method))
+            return EmitIntOnly(cm, method) ?? EmitTyped(cm, method) ?? EmitGeneral(cm, method);
+        return EmitTyped(cm, method) ?? EmitGeneral(cm, method);
     }
 
     private static JittedMethod? EmitIntOnly(CompiledMethod cm, MethodNode method)
@@ -738,6 +740,784 @@ public static class JitCompiler
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    //  Typed JIT path — type inference + native IL for known types
+    // ═══════════════════════════════════════════════════════════════════
+
+    private enum SlotType : byte { Unknown, Int, Float, Bool, Object }
+
+    /// <summary>
+    /// Forward type inference: determine the type of each stack slot at each instruction.
+    /// </summary>
+    private static SlotType[] InferSlotTypes(CompiledMethod cm, int maxStack, out SlotType[] localTypes)
+    {
+        int codeLen = cm.Code.Length;
+        var code = cm.Code;
+        var stackTypesAt = new SlotType[codeLen * Math.Max(maxStack, 1)];
+
+        localTypes = new SlotType[cm.LocalCount];
+        for (int i = 0; i < cm.LocalCount; i++)
+        {
+            if (i < cm.SourceMethod.Locals.Count)
+            {
+                var tn = cm.SourceMethod.Locals[i].LocalType.Name;
+                if (tn == "int32") localTypes[i] = SlotType.Int;
+                else if (tn is "float32" or "float" or "single") localTypes[i] = SlotType.Float;
+                else if (tn == "bool") localTypes[i] = SlotType.Bool;
+                else localTypes[i] = SlotType.Object;
+            }
+            else localTypes[i] = SlotType.Int;
+        }
+
+        var argTypes = new SlotType[cm.ArgCount];
+        for (int i = 0; i < cm.ArgCount; i++)
+        {
+            if (i < cm.SourceMethod.Parameters.Count)
+            {
+                var tn = cm.SourceMethod.Parameters[i].ParameterType.Name;
+                if (tn == "int32") argTypes[i] = SlotType.Int;
+                else if (tn is "float32" or "float" or "single") argTypes[i] = SlotType.Float;
+                else if (tn == "bool") argTypes[i] = SlotType.Bool;
+                else argTypes[i] = SlotType.Object;
+            }
+            else argTypes[i] = SlotType.Object;
+        }
+
+        bool changed = true;
+        int maxPasses = 4;
+        while (changed && maxPasses-- > 0)
+        {
+            changed = false;
+            int sp = 0;
+            var stack = new SlotType[maxStack];
+
+            for (int ip = 0; ip < codeLen; ip++)
+            {
+                // Save current stack state
+                int baseIdx = ip * maxStack;
+                for (int i = 0; i < sp; i++)
+                {
+                    if (stackTypesAt[baseIdx + i] != stack[i])
+                    {
+                        stackTypesAt[baseIdx + i] = stack[i];
+                        changed = true;
+                    }
+                }
+                for (int i = sp; i < maxStack; i++)
+                    stackTypesAt[baseIdx + i] = SlotType.Unknown;
+
+                var instr = code[ip];
+                switch (instr.Opcode)
+                {
+                    case IrOpCode.LdcI4:
+                        if (sp < maxStack) stack[sp++] = SlotType.Int;
+                        break;
+                    case IrOpCode.LdcR4:
+                        if (sp < maxStack) stack[sp++] = SlotType.Float;
+                        break;
+                    case IrOpCode.Ldstr:
+                    case IrOpCode.Ldnull:
+                        if (sp < maxStack) stack[sp++] = SlotType.Object;
+                        break;
+                    case IrOpCode.Ldloc:
+                        if (sp < maxStack)
+                        {
+                            int li = instr.Operand;
+                            stack[sp++] = li < localTypes.Length ? localTypes[li] : SlotType.Object;
+                        }
+                        break;
+                    case IrOpCode.Stloc:
+                        if (sp > 0)
+                        {
+                            sp--;
+                            int li = instr.Operand;
+                            if (li < localTypes.Length && localTypes[li] != stack[sp])
+                            {
+                                if (localTypes[li] == SlotType.Unknown)
+                                {
+                                    localTypes[li] = stack[sp];
+                                    changed = true;
+                                }
+                                else if (stack[sp] != SlotType.Unknown && localTypes[li] != stack[sp])
+                                {
+                                    localTypes[li] = SlotType.Object;
+                                    changed = true;
+                                }
+                            }
+                        }
+                        break;
+                    case IrOpCode.Ldarg:
+                        if (sp < maxStack)
+                        {
+                            int ai = instr.Operand;
+                            stack[sp++] = ai < argTypes.Length ? argTypes[ai] : SlotType.Object;
+                        }
+                        break;
+                    case IrOpCode.Starg:
+                        if (sp > 0) sp--;
+                        break;
+                    case IrOpCode.Dup:
+                        if (sp > 0 && sp < maxStack) { stack[sp] = stack[sp - 1]; sp++; }
+                        break;
+                    case IrOpCode.Pop:
+                        if (sp > 0) sp--;
+                        break;
+                    case IrOpCode.Ret:
+                        break;
+
+                    case IrOpCode.Add:
+                    case IrOpCode.Sub:
+                    case IrOpCode.Mul:
+                    case IrOpCode.Div:
+                    case IrOpCode.Rem:
+                    {
+                        if (sp >= 2)
+                        {
+                            var b = stack[--sp];
+                            var a = stack[--sp];
+                            SlotType result;
+                            if (a == SlotType.Float || b == SlotType.Float)
+                                result = SlotType.Float;
+                            else if (a == SlotType.Int && b == SlotType.Int)
+                                result = SlotType.Int;
+                            else if (a == SlotType.Object || b == SlotType.Object)
+                                result = SlotType.Object;
+                            else if (a == SlotType.Bool && b == SlotType.Bool)
+                                result = SlotType.Bool;
+                            else
+                                result = SlotType.Int;
+                            if (sp < maxStack) stack[sp++] = result;
+                        }
+                        break;
+                    }
+
+                    case IrOpCode.Neg:
+                        break;
+                    case IrOpCode.Not:
+                        break;
+
+                    case IrOpCode.Ceq:
+                    case IrOpCode.Cne:
+                    case IrOpCode.Cgt:
+                    case IrOpCode.Clt:
+                    case IrOpCode.CgtUn:
+                    case IrOpCode.CgeUn:
+                        if (sp >= 2) { sp--; stack[sp - 1] = SlotType.Bool; }
+                        break;
+
+                    case IrOpCode.Br:
+                        break;
+
+                    case IrOpCode.Brfalse:
+                    case IrOpCode.Brtrue:
+                        if (sp > 0) { sp--; }
+                        break;
+
+                    case IrOpCode.Ldfld:
+                        if (sp > 0) { sp--; stack[sp++] = SlotType.Object; }
+                        break;
+
+                    case IrOpCode.Stfld:
+                        if (sp >= 2) sp -= 2;
+                        break;
+
+                    case IrOpCode.Newobj:
+                    {
+                        int targetIdx = instr.Operand;
+                        int ctorArgCount = 0;
+                        if (targetIdx >= 0 && targetIdx < cm.NewObjTargets.Length)
+                        {
+                            var no = cm.NewObjTargets[targetIdx];
+                            ctorArgCount = no?.Constructor?.ParameterTypes.Count ?? 0;
+                        }
+                        if (sp >= ctorArgCount) sp -= ctorArgCount;
+                        if (sp < maxStack) stack[sp++] = SlotType.Object;
+                        break;
+                    }
+
+                    case IrOpCode.Call:
+                    {
+                        int targetIdx = instr.Operand;
+                        int callArgCount = 0;
+                        SlotType retType = SlotType.Unknown;
+                        if (targetIdx >= 0 && targetIdx < cm.CallTargets.Length)
+                        {
+                            var ci = cm.CallTargets[targetIdx];
+                            if (ci?.Target != null)
+                            {
+                                callArgCount = ci.Target.ParameterTypes.Count;
+                                var rtn = ci.Target.ReturnType?.Name;
+                                if (rtn is "int32" or "int") retType = SlotType.Int;
+                                else if (rtn is "float32" or "float" or "single") retType = SlotType.Float;
+                                else if (rtn == "bool") retType = SlotType.Bool;
+                                else if (rtn is not null and not "void") retType = SlotType.Object;
+                            }
+                        }
+                        if (sp >= callArgCount) sp -= callArgCount;
+                        if (retType != SlotType.Unknown)
+                        {
+                            if (sp < maxStack) stack[sp++] = retType;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        return stackTypesAt;
+    }
+
+    /// <summary>
+    /// Type-aware JIT: uses the CLR evaluation stack directly with native types.
+    /// Values are kept as native int/float on the CLR stack — no boxing.
+    /// Only complex operations (Call, Newobj, Ldfld, Stfld) spill to object.
+    /// </summary>
+    private static JittedMethod? EmitTyped(CompiledMethod cm, MethodNode method)
+    {
+        try
+        {
+            int argCount = cm.ArgCount;
+            int localCount = cm.LocalCount;
+            int codeLen = cm.Code.Length;
+            bool hasReturn = cm.ReturnsValue;
+            int maxStack = Math.Max(ComputeMaxStack(cm), 1);
+
+            var stackTypesAt = InferSlotTypes(cm, maxStack, out var localTypes);
+
+            var dm = new DynamicMethod(
+                $"jit_typed_{cm.Name}",
+                typeof(object),
+                [typeof(object?[]), typeof(CPU), typeof(CompiledMethod)],
+                typeof(JitCompiler).Module,
+                skipVisibility: true);
+
+            var il = dm.GetILGenerator();
+
+            // Slot 0: return value (object)
+            il.DeclareLocal(typeof(object));
+
+            // Slots 1..argCount: typed arg locals
+            for (int i = 0; i < argCount; i++)
+            {
+                var at = i < cm.SourceMethod.Parameters.Count
+                    ? cm.SourceMethod.Parameters[i].ParameterType.Name
+                    : "object";
+                il.DeclareLocal(at is "int32" or "bool" ? typeof(int)
+                    : at is "float32" or "float" or "single" ? typeof(float)
+                    : typeof(object));
+            }
+
+            // Slots 1+argCount..localCount: typed local variable locals
+            for (int i = 0; i < localCount; i++)
+            {
+                var lt = i < localTypes.Length ? localTypes[i] : SlotType.Object;
+                il.DeclareLocal(lt switch
+                {
+                    SlotType.Int => typeof(int),
+                    SlotType.Float => typeof(float),
+                    SlotType.Bool => typeof(int),
+                    _ => typeof(object)
+                });
+            }
+
+            // Spill locals for values that need boxing (Call, Newobj, Ldfld, Stfld)
+            // We create them on demand for each complex op
+            var spillLocals = new List<LocalBuilder>();
+
+            int GetOrCreateSpillLocal()
+            {
+                int idx = spillLocals.Count;
+                spillLocals.Add(il.DeclareLocal(typeof(object)));
+                return 1 + argCount + localCount + idx;
+            }
+
+            var branchTargets = new HashSet<int>();
+            foreach (var instr in cm.Code)
+            {
+                if (instr.Opcode is IrOpCode.Br or IrOpCode.Brfalse or IrOpCode.Brtrue)
+                    branchTargets.Add(instr.Operand);
+            }
+
+            var labels = new Label[codeLen];
+            for (int i = 0; i < codeLen; i++)
+                labels[i] = branchTargets.Contains(i) ? il.DefineLabel() : default;
+            var retLabel = il.DefineLabel();
+
+            // Unbox args from object[] at entry
+            for (int i = 0; i < argCount; i++)
+            {
+                int localSlot = 1 + i;
+                var paramName = i < cm.SourceMethod.Parameters.Count
+                    ? cm.SourceMethod.Parameters[i].ParameterType.Name
+                    : "object";
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldc_I4, i);
+                il.Emit(OpCodes.Call, _unboxArg);
+                if (paramName is "int32" or "bool")
+                    il.Emit(OpCodes.Unbox_Any, typeof(int));
+                else if (paramName is "float32" or "float" or "single")
+                    il.Emit(OpCodes.Unbox_Any, typeof(float));
+                il.Emit(OpCodes.Stloc, localSlot);
+            }
+
+            // Current CLR evaluation stack depth.
+            int clrStack = 0;
+
+            for (int idx = 0; idx < codeLen; idx++)
+            {
+                if (branchTargets.Contains(idx))
+                    il.MarkLabel(labels[idx]);
+
+                var instr = cm.Code[idx];
+
+                // Helper: box the value on the CLR stack into a spill local
+                void BoxToSpill(SlotType slotType)
+                {
+                    int spillIdx = GetOrCreateSpillLocal();
+                    if (slotType == SlotType.Int || slotType == SlotType.Bool)
+                    {
+                        il.Emit(OpCodes.Box, typeof(int));
+                    }
+                    else if (slotType == SlotType.Float)
+                    {
+                        il.Emit(OpCodes.Box, typeof(float));
+                    }
+                    il.Emit(OpCodes.Stloc, spillIdx);
+                }
+
+                // Helper: unbox from spill local back to CLR stack
+                void UnboxFromSpill(int spillIdx, SlotType slotType)
+                {
+                    il.Emit(OpCodes.Ldloc, spillIdx);
+                    if (slotType == SlotType.Int || slotType == SlotType.Bool)
+                    {
+                        il.Emit(OpCodes.Unbox_Any, typeof(int));
+                    }
+                    else if (slotType == SlotType.Float)
+                    {
+                        il.Emit(OpCodes.Unbox_Any, typeof(float));
+                    }
+                }
+
+                // Helper: get the inferred type of a stack slot (0 = bottom, clrStack-1 = top)
+                SlotType GetStackType(int depth)
+                {
+                    if (depth < 0 || depth >= maxStack || idx >= codeLen) return SlotType.Object;
+                    return stackTypesAt[idx * maxStack + depth];
+                }
+
+                SlotType GetTopType() { return clrStack > 0 ? GetStackType(clrStack - 1) : SlotType.Object; }
+                SlotType GetSecondType() { return clrStack > 1 ? GetStackType(clrStack - 2) : SlotType.Object; }
+
+                switch (instr.Opcode)
+                {
+                    case IrOpCode.LdcI4:
+                        il.Emit(OpCodes.Ldc_I4, instr.Operand);
+                        clrStack++;
+                        break;
+
+                    case IrOpCode.LdcR4:
+                        il.Emit(OpCodes.Ldarg_2);
+                        il.Emit(OpCodes.Call, typeof(CompiledMethod).GetProperty(nameof(CompiledMethod.FloatTable))!.GetMethod!);
+                        il.Emit(OpCodes.Ldc_I4, instr.Operand);
+                        il.Emit(OpCodes.Ldelem_R4);
+                        clrStack++;
+                        break;
+
+                    case IrOpCode.Ldstr:
+                        il.Emit(OpCodes.Ldarg_2);
+                        il.Emit(OpCodes.Call, typeof(CompiledMethod).GetProperty(nameof(CompiledMethod.StringTable))!.GetMethod!);
+                        il.Emit(OpCodes.Ldc_I4, instr.Operand);
+                        il.Emit(OpCodes.Ldelem_Ref);
+                        clrStack++;
+                        break;
+
+                    case IrOpCode.Ldnull:
+                        il.Emit(OpCodes.Ldnull);
+                        clrStack++;
+                        break;
+
+                    case IrOpCode.Ldloc:
+                    {
+                        int li = 1 + argCount + instr.Operand;
+                        il.Emit(OpCodes.Ldloc, li);
+                        clrStack++;
+                        break;
+                    }
+
+                    case IrOpCode.Stloc:
+                    {
+                        int li = 1 + argCount + instr.Operand;
+                        il.Emit(OpCodes.Stloc, li);
+                        clrStack--;
+                        break;
+                    }
+
+                    case IrOpCode.Ldarg:
+                        il.Emit(OpCodes.Ldloc, 1 + instr.Operand);
+                        clrStack++;
+                        break;
+
+                    case IrOpCode.Starg:
+                        il.Emit(OpCodes.Stloc, 1 + instr.Operand);
+                        clrStack--;
+                        break;
+
+                    case IrOpCode.Dup:
+                        il.Emit(OpCodes.Dup);
+                        clrStack++;
+                        break;
+
+                    case IrOpCode.Pop:
+                        il.Emit(OpCodes.Pop);
+                        clrStack--;
+                        break;
+
+                    case IrOpCode.Ret:
+                        if (hasReturn)
+                        {
+                            // Box the return value to object
+                            var retName = method.ReturnType.Name;
+                            if (retName is "int32" or "bool")
+                                il.Emit(OpCodes.Box, typeof(int));
+                            else if (retName is "float32" or "float" or "single")
+                                il.Emit(OpCodes.Box, typeof(float));
+                            il.Emit(OpCodes.Stloc, 0);
+                            clrStack--;
+                        }
+                        il.Emit(OpCodes.Br, retLabel);
+                        break;
+
+                    case IrOpCode.Add:
+                    case IrOpCode.Sub:
+                    case IrOpCode.Mul:
+                    case IrOpCode.Div:
+                    case IrOpCode.Rem:
+                    {
+                        var top = GetTopType();
+                        var second = GetSecondType();
+
+                        if (top == SlotType.Float && second == SlotType.Float)
+                        {
+                            // Both float — native float arithmetic on CLR stack
+                            il.Emit(instr.Opcode switch
+                            {
+                                IrOpCode.Add => OpCodes.Add,
+                                IrOpCode.Sub => OpCodes.Sub,
+                                IrOpCode.Mul => OpCodes.Mul,
+                                IrOpCode.Div => OpCodes.Div,
+                                IrOpCode.Rem => OpCodes.Rem,
+                                _ => OpCodes.Add
+                            });
+                            clrStack--; // pop 2, push 1
+                        }
+                        else if (top == SlotType.Int && second == SlotType.Int)
+                        {
+                            // Both int — native int arithmetic on CLR stack
+                            il.Emit(instr.Opcode switch
+                            {
+                                IrOpCode.Add => OpCodes.Add,
+                                IrOpCode.Sub => OpCodes.Sub,
+                                IrOpCode.Mul => OpCodes.Mul,
+                                IrOpCode.Div => OpCodes.Div,
+                                IrOpCode.Rem => OpCodes.Rem,
+                                _ => OpCodes.Add
+                            });
+                            clrStack--; // pop 2, push 1
+                        }
+                        else
+                        {
+                            // Mixed/unknown — spill to object and use JitAdd/JitSub/etc
+                            // Spill b, spill a, load a, load b, call helper, push result
+                            BoxToSpill(top);
+                            clrStack--;
+                            BoxToSpill(second);
+                            clrStack--;
+                            int bSpill = spillLocals.Count - 1;
+                            int aSpill = spillLocals.Count - 2;
+                            // Load in reverse order for the helper
+                            il.Emit(OpCodes.Ldloc, 1 + argCount + localCount + aSpill);
+                            il.Emit(OpCodes.Ldloc, 1 + argCount + localCount + bSpill);
+                            il.Emit(OpCodes.Call, instr.Opcode switch
+                            {
+                                IrOpCode.Add => _jitAdd,
+                                IrOpCode.Sub => _jitSub,
+                                IrOpCode.Mul => _jitMul,
+                                IrOpCode.Div => _jitDiv,
+                                IrOpCode.Rem => _jitRem,
+                                _ => _jitAdd
+                            });
+                            clrStack++;
+                        }
+                        break;
+                    }
+
+                    case IrOpCode.Neg:
+                    {
+                        var top = GetTopType();
+                        if (top == SlotType.Float)
+                        {
+                            il.Emit(OpCodes.Neg);
+                        }
+                        else
+                        {
+                            BoxToSpill(top);
+                            clrStack--;
+                            int spill = 1 + argCount + localCount + (spillLocals.Count - 1);
+                            il.Emit(OpCodes.Ldloc, spill);
+                            il.Emit(OpCodes.Call, _jitNeg);
+                            if (top == SlotType.Int || top == SlotType.Bool)
+                                il.Emit(OpCodes.Unbox_Any, typeof(int));
+                            clrStack++;
+                        }
+                        break;
+                    }
+
+                    case IrOpCode.Not:
+                        // Not is always on int (bool) — use helper for now
+                        BoxToSpill(GetTopType());
+                        clrStack--;
+                        int notSpill = 1 + argCount + localCount + (spillLocals.Count - 1);
+                        il.Emit(OpCodes.Ldloc, notSpill);
+                        il.Emit(OpCodes.Call, _jitNot);
+                        clrStack++;
+                        break;
+
+                    case IrOpCode.Ceq:
+                    case IrOpCode.Cne:
+                    case IrOpCode.Cgt:
+                    case IrOpCode.Clt:
+                    case IrOpCode.CgtUn:
+                    case IrOpCode.CgeUn:
+                    {
+                        var top = GetTopType();
+                        var second = GetSecondType();
+
+                        // Both int — use native IL ops (produce int 0/1)
+                        if (top == SlotType.Int && second == SlotType.Int)
+                        {
+                            il.Emit(instr.Opcode switch
+                            {
+                                IrOpCode.Ceq => OpCodes.Ceq,
+                                IrOpCode.Cne => OpCodes.Ceq, // ceq + ldc.i4 0 + ceq
+                                IrOpCode.Cgt => OpCodes.Cgt,
+                                IrOpCode.Clt => OpCodes.Clt,
+                                IrOpCode.CgtUn => OpCodes.Cgt_Un,
+                                IrOpCode.CgeUn => OpCodes.Clt_Un, // clt.un + ldc.i4 0 + ceq
+                                _ => OpCodes.Ceq
+                            });
+                            if (instr.Opcode == IrOpCode.Cne)
+                            {
+                                il.Emit(OpCodes.Ldc_I4_0);
+                                il.Emit(OpCodes.Ceq);
+                            }
+                            else if (instr.Opcode == IrOpCode.CgeUn)
+                            {
+                                il.Emit(OpCodes.Ldc_I4_0);
+                                il.Emit(OpCodes.Ceq);
+                            }
+                            clrStack--; // pop 2, push 1
+                        }
+                        else if (top == SlotType.Float && second == SlotType.Float)
+                        {
+                            // Float comparison — use helper for correct NaN handling
+                            BoxToSpill(top);
+                            clrStack--;
+                            BoxToSpill(second);
+                            clrStack--;
+                            int fB = 1 + argCount + localCount + (spillLocals.Count - 1);
+                            int fA = 1 + argCount + localCount + (spillLocals.Count - 2);
+                            il.Emit(OpCodes.Ldloc, fA);
+                            il.Emit(OpCodes.Ldloc, fB);
+                            il.Emit(OpCodes.Ldc_I4, (int)instr.Opcode);
+                            il.Emit(OpCodes.Call, _jitCompare);
+                            il.Emit(OpCodes.Unbox_Any, typeof(int));
+                            clrStack++;
+                        }
+                        else
+                        {
+                            // Mixed/unknown — use JitCompare helper
+                            BoxToSpill(top);
+                            clrStack--;
+                            BoxToSpill(second);
+                            clrStack--;
+                            int cB = 1 + argCount + localCount + (spillLocals.Count - 1);
+                            int cA = 1 + argCount + localCount + (spillLocals.Count - 2);
+                            il.Emit(OpCodes.Ldloc, cA);
+                            il.Emit(OpCodes.Ldloc, cB);
+                            il.Emit(OpCodes.Ldc_I4, (int)instr.Opcode);
+                            il.Emit(OpCodes.Call, _jitCompare);
+                            il.Emit(OpCodes.Unbox_Any, typeof(int));
+                            clrStack++;
+                        }
+                        break;
+                    }
+
+                    case IrOpCode.Br:
+                        il.Emit(OpCodes.Br, labels[instr.Operand]);
+                        break;
+
+                    case IrOpCode.Brfalse:
+                    {
+                        // Brfalse expects int on CLR stack (from comparison)
+                        il.Emit(OpCodes.Brfalse, labels[instr.Operand]);
+                        clrStack--;
+                        break;
+                    }
+
+                    case IrOpCode.Brtrue:
+                    {
+                        // Brtrue expects int on CLR stack
+                        il.Emit(OpCodes.Brtrue, labels[instr.Operand]);
+                        clrStack--;
+                        break;
+                    }
+
+                    case IrOpCode.Ldfld:
+                    {
+                        // Spill instance to object, call JitLdfld helper
+                        BoxToSpill(GetTopType());
+                        clrStack--;
+                        int ldfldSpill = 1 + argCount + localCount + (spillLocals.Count - 1);
+                        il.Emit(OpCodes.Ldloc, ldfldSpill);
+                        il.Emit(OpCodes.Ldarg_2);
+                        il.Emit(OpCodes.Call, typeof(CompiledMethod).GetProperty(nameof(CompiledMethod.StringTable))!.GetMethod!);
+                        il.Emit(OpCodes.Ldc_I4, instr.Operand);
+                        il.Emit(OpCodes.Ldelem_Ref);
+                        il.Emit(OpCodes.Call, _jitLdfld);
+                        clrStack++;
+                        break;
+                    }
+
+                    case IrOpCode.Stfld:
+                    {
+                        // Spill value, then instance
+                        BoxToSpill(GetTopType());
+                        clrStack--;
+                        int stfldValue = 1 + argCount + localCount + (spillLocals.Count - 1);
+                        BoxToSpill(GetTopType()); // now top is the instance
+                        clrStack--;
+                        int stfldInst = 1 + argCount + localCount + (spillLocals.Count - 1);
+                        il.Emit(OpCodes.Ldloc, stfldValue);
+                        il.Emit(OpCodes.Ldloc, stfldInst);
+                        il.Emit(OpCodes.Ldarg_2);
+                        il.Emit(OpCodes.Call, typeof(CompiledMethod).GetProperty(nameof(CompiledMethod.StringTable))!.GetMethod!);
+                        il.Emit(OpCodes.Ldc_I4, instr.Operand);
+                        il.Emit(OpCodes.Ldelem_Ref);
+                        il.Emit(OpCodes.Call, _jitStfld);
+                        break;
+                    }
+
+                    case IrOpCode.Newobj:
+                    {
+                        int targetIdx = instr.Operand;
+                        var newObj = targetIdx >= 0 && targetIdx < cm.NewObjTargets.Length
+                            ? cm.NewObjTargets[targetIdx] : null;
+                        if (newObj == null) break;
+
+                        var ctor = newObj.Constructor;
+                        int ctorArgCount = ctor?.ParameterTypes.Count ?? 0;
+
+                        // Spill constructor args from CLR stack to spill locals, boxing as needed
+                        var ctorSpills = new int[ctorArgCount];
+                        for (int i = ctorArgCount - 1; i >= 0; i--)
+                        {
+                            var argType = (ctor != null && i < ctor.ParameterTypes.Count)
+                                ? ctor.ParameterTypes[i].Name
+                                : "object";
+                            BoxToSpill(argType is "int32" or "int" ? SlotType.Int
+                                : argType is "float32" or "float" or "single" ? SlotType.Float
+                                : SlotType.Object);
+                            clrStack--;
+                            ctorSpills[i] = spillLocals.Count - 1;
+                        }
+
+                        il.Emit(OpCodes.Ldstr, newObj.Type.Name);
+                        il.Emit(OpCodes.Ldc_I4, ctorArgCount);
+                        il.Emit(OpCodes.Newarr, typeof(object));
+                        for (int i = 0; i < ctorArgCount; i++)
+                        {
+                            il.Emit(OpCodes.Dup);
+                            il.Emit(OpCodes.Ldc_I4, i);
+                            il.Emit(OpCodes.Ldloc, 1 + argCount + localCount + ctorSpills[i]);
+                            il.Emit(OpCodes.Stelem_Ref);
+                        }
+                        il.Emit(OpCodes.Ldarg_1);
+                        il.Emit(OpCodes.Call, _jitNewobjSimple);
+                        clrStack++; // new object is on CLR stack
+                        break;
+                    }
+
+                    case IrOpCode.Call:
+                    {
+                        int targetIdx = instr.Operand;
+                        var callInstr = targetIdx >= 0 && targetIdx < cm.CallTargets.Length
+                            ? cm.CallTargets[targetIdx] : null;
+                        if (callInstr == null) break;
+
+                        int callArgCount = callInstr.Target.ParameterTypes.Count;
+
+                        // Spill args from CLR stack to spill locals, boxing as needed
+                        var callSpills = new int[callArgCount];
+                        for (int i = callArgCount - 1; i >= 0; i--)
+                        {
+                            var pt = callInstr.Target;
+                            var argTypeName = (i < pt.ParameterTypes.Count)
+                                ? pt.ParameterTypes[i].Name
+                                : "object";
+                            BoxToSpill(argTypeName is "int32" or "int" ? SlotType.Int
+                                : argTypeName is "float32" or "float" or "single" ? SlotType.Float
+                                : SlotType.Object);
+                            clrStack--;
+                            callSpills[i] = spillLocals.Count - 1;
+                        }
+
+                        il.Emit(OpCodes.Ldc_I4, targetIdx);
+                        il.Emit(OpCodes.Ldc_I4, callArgCount);
+                        il.Emit(OpCodes.Newarr, typeof(object));
+                        for (int i = 0; i < callArgCount; i++)
+                        {
+                            il.Emit(OpCodes.Dup);
+                            il.Emit(OpCodes.Ldc_I4, i);
+                            il.Emit(OpCodes.Ldloc, 1 + argCount + localCount + callSpills[i]);
+                            il.Emit(OpCodes.Stelem_Ref);
+                        }
+                        il.Emit(OpCodes.Ldarg_1); // cpu
+                        il.Emit(OpCodes.Ldarg_2); // cm
+                        il.Emit(OpCodes.Call, _jitCallDirect);
+
+                        bool returnsValue = !string.Equals(callInstr.Target.ReturnType?.Name, "void", StringComparison.Ordinal);
+                        if (returnsValue)
+                        {
+                            var retName = callInstr.Target.ReturnType?.Name;
+                            if (retName is "int32" or "int" or "bool")
+                                il.Emit(OpCodes.Unbox_Any, typeof(int));
+                            else if (retName is "float32" or "float" or "single")
+                                il.Emit(OpCodes.Unbox_Any, typeof(float));
+                            clrStack++;
+                        }
+                        break;
+                    }
+
+                    default:
+                        break;
+                }
+            }
+
+            il.MarkLabel(retLabel);
+            il.Emit(OpCodes.Ldloc, 0);
+            il.Emit(OpCodes.Ret);
+
+            var cmCaptured = cm;
+            var del = dm.CreateDelegate<Func<object?[], CPU, CompiledMethod, object?>>();
+            return (args, cpu, _) => del(args, cpu, cmCaptured);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     //  Helper methods — called from JIT'd IL via Call
     // ═══════════════════════════════════════════════════════════════════
 
@@ -952,6 +1732,37 @@ public static class JitCompiler
 
     public static object? JitCallSimple(int targetIndex, object?[] args, CPU cpu, CompiledMethod cm)
         => JitCall(targetIndex, args, args.Length, cpu, cm);
+
+    /// <summary>
+    /// Direct JIT-to-JIT call: uses pre-resolved targets and reuses the args array.
+    /// Avoids the double-allocation in JitCall (which copies args into a new array).
+    /// </summary>
+    public static object? JitCallDirect(int targetIdx, object?[] args, CPU cpu, CompiledMethod cm)
+    {
+        if (cm.ResolvedCallTargets == null || targetIdx < 0 || targetIdx >= cm.ResolvedCallTargets.Length)
+            return JitCall(targetIdx, args, args.Length, cpu, cm);
+
+        var target = cm.ResolvedCallTargets[targetIdx];
+        if (target == null) return JitCall(targetIdx, args, args.Length, cpu, cm);
+
+        var compiledTarget = cpu.GetCompiled(target);
+        if (compiledTarget == null) return null;
+
+        var jitDel = cpu.Cache.GetJit(target);
+        if (jitDel != null)
+        {
+            // Reuse the args array directly — no copy
+            var result = jitDel(args, cpu, compiledTarget);
+            return compiledTarget.ReturnsValue ? result : null;
+        }
+
+        // Fallback to compiled executor (same as JitCall)
+        var stackArgs = new StackValue[args.Length];
+        for (int i = 0; i < args.Length; i++)
+            stackArgs[i] = CompiledExecutor.RawToStackValue(args[i]);
+        var execResult = CompiledExecutor.Execute(compiledTarget, stackArgs, cpu);
+        return compiledTarget.ReturnsValue ? execResult.ToObject() : null;
+    }
 
     public static object? JitNewobjSimple(string typeName, object?[] args, CPU cpu)
         => JitNewobj(typeName, args, args.Length, cpu);

@@ -14,13 +14,17 @@ namespace lattice.Runtime.Compiler;
 public static class CompiledExecutor
 {
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static StackValue RawToStackValue(object? val) => val switch
+    internal static StackValue RawToStackValue(object? val)
     {
-        int iv => StackValue.FromInt(iv),
-        float fv => StackValue.FromFloat(fv),
-        bool bv => StackValue.FromBool(bv),
-        _ => StackValue.FromObject(val)
-    };
+        if (val is IValue v) val = v.GetObjectData();
+        return val switch
+        {
+            int iv => StackValue.FromInt(iv),
+            float fv => StackValue.FromFloat(fv),
+            bool bv => StackValue.FromBool(bv),
+            _ => StackValue.FromObject(val)
+        };
+    }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static StackValue Execute(CompiledMethod cm, StackValue[] args, CPU cpu)
@@ -164,51 +168,79 @@ public static class CompiledExecutor
                 case OpCode.Call:
                 {
                     int targetIdx = instr.Operand;
-                    var callInstr = targetIdx >= 0 && targetIdx < cm.CallTargets.Length
-                        ? cm.CallTargets[targetIdx] : null;
+                    MethodNode? target = null;
 
-                    if (callInstr != null)
+                    // Fast path: use pre-resolved target
+                    if (targetIdx >= 0 && targetIdx < cm.ResolvedCallTargets.Length)
+                        target = cm.ResolvedCallTargets[targetIdx];
+
+                    // Fallback: resolve at runtime (for methods loaded after compilation)
+                    if (target == null)
                     {
-                        var target = cpu.ResolveMethod(callInstr.Target);
-                        if (target != null)
-                        {
-                            int argCount = target.Parameters.Count;
-                            var pooled = ArrayPool<StackValue>.Shared.Rent(argCount);
-                            try
-                            {
-                                for (int i = argCount - 1; i >= 0; i--)
-                                    pooled[i] = s[--sp];
+                        var callInstr = targetIdx >= 0 && targetIdx < cm.CallTargets.Length
+                            ? cm.CallTargets[targetIdx] : null;
+                        if (callInstr?.Target != null)
+                            target = cpu.ResolveMethod(callInstr.Target);
+                    }
 
-                                if (target.NativeImpl != null)
+                    if (target != null)
+                    {
+                        int argCount = target.Parameters.Count;
+
+                        if (argCount == 0)
+                        {
+                            // Fast path: no args, no allocation
+                            if (target.NativeImpl != null)
+                            {
+                                var result = target.NativeImpl.Method([]);
+                                if (!string.Equals(target.ReturnType.Name, "void", StringComparison.Ordinal) && result != null)
                                 {
-                                    var nativeArgs = ArrayPool<Value<object>>.Shared.Rent(argCount);
-                                    try
-                                    {
-                                        for (int i = 0; i < argCount; i++)
-                                            nativeArgs[i] = new Value<object>(pooled[i].ToObject()!);
-                                        var result = target.NativeImpl.Method(nativeArgs);
-                                        if (!string.Equals(target.ReturnType.Name, "void", StringComparison.Ordinal) && result != null)
-                                        {
-                                            var rawResult = result is IValue iv ? iv.GetObjectData() : result;
-                                            s[sp++] = RawToStackValue(rawResult);
-                                        }
-                                    }
-                                    finally { ArrayPool<Value<object>>.Shared.Return(nativeArgs, clearArray: true); }
-                                }
-                                else
-                                {
-                                    var compiledTarget = cpu.GetCompiled(target);
-                                    if (compiledTarget != null)
-                                    {
-                                        var result = Execute(compiledTarget, pooled.ToArray(), cpu);
-                                        if (compiledTarget.ReturnsValue)
-                                            s[sp++] = result;
-                                    }
+                                    var rawResult = result is IValue iv ? iv.GetObjectData() : result;
+                                    s[sp++] = RawToStackValue(rawResult);
                                 }
                             }
-                            finally
+                            else
                             {
-                                ArrayPool<StackValue>.Shared.Return(pooled);
+                                var compiledTarget = cpu.GetCompiled(target);
+                                if (compiledTarget != null)
+                                {
+                                    var result = Execute(compiledTarget, [], cpu);
+                                    if (compiledTarget.ReturnsValue)
+                                        s[sp++] = result;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            var callArgs = new StackValue[argCount];
+                            for (int i = argCount - 1; i >= 0; i--)
+                                callArgs[i] = s[--sp];
+
+                            if (target.NativeImpl != null)
+                            {
+                                var nativeArgs = ArrayPool<Value<object>>.Shared.Rent(argCount);
+                                try
+                                {
+                                    for (int i = 0; i < argCount; i++)
+                                        nativeArgs[i] = new Value<object>(callArgs[i].ToObject()!);
+                                    var result = target.NativeImpl.Method(nativeArgs);
+                                    if (!string.Equals(target.ReturnType.Name, "void", StringComparison.Ordinal) && result != null)
+                                    {
+                                        var rawResult = result is IValue iv ? iv.GetObjectData() : result;
+                                        s[sp++] = RawToStackValue(rawResult);
+                                    }
+                                }
+                                finally { ArrayPool<Value<object>>.Shared.Return(nativeArgs, clearArray: true); }
+                            }
+                            else
+                            {
+                                var compiledTarget = cpu.GetCompiled(target);
+                                if (compiledTarget != null)
+                                {
+                                    var result = Execute(compiledTarget, callArgs, cpu);
+                                    if (compiledTarget.ReturnsValue)
+                                        s[sp++] = result;
+                                }
                             }
                         }
                     }
@@ -239,11 +271,21 @@ public static class CompiledExecutor
                         }
                         if (newObj.Constructor != null)
                         {
-                            var ctor = cpu.ResolveMethod(newObj.Constructor);
+                            // Fast path: use pre-resolved constructor target
+                            MethodNode? ctor = null;
+                            if (targetIdx >= 0 && targetIdx < cm.ResolvedCtorTargets.Length)
+                                ctor = cm.ResolvedCtorTargets[targetIdx];
+
+                            // Fallback: resolve at runtime
+                            if (ctor == null)
+                                ctor = cpu.ResolveMethod(newObj.Constructor);
+
                             if (ctor != null)
                             {
                                 int ctorArgCount = ctor.Parameters.Count;
-                                var callArgs = new StackValue[ctorArgCount];
+                                var callArgs = ctorArgCount <= 8
+                                    ? new StackValue[ctorArgCount]
+                                    : new StackValue[ctorArgCount];
                                 for (int i = ctorArgCount - 1; i >= 0; i--)
                                     callArgs[i] = s[--sp];
                                 var compiledCtor = cpu.GetCompiled(ctor);
@@ -259,8 +301,15 @@ public static class CompiledExecutor
                 case OpCode.Ldfld:
                 {
                     var instance = s[--sp].AsObject as ManagedObject;
-                    var fieldName = cm.StringTable[instr.Operand];
-                    if (fieldName.Contains(".")) fieldName = fieldName.Split('.')[1];
+                    // Fast path: use pre-split field name
+                    string fieldName;
+                    if (instr.Operand < cm.FieldNames.Length)
+                        fieldName = cm.FieldNames[instr.Operand];
+                    else
+                    {
+                        fieldName = cm.StringTable[instr.Operand];
+                        if (fieldName.Contains(".")) fieldName = fieldName.Split('.')[1];
+                    }
                     s[sp++] = RawToStackValue(instance?.GetField(fieldName));
                     ip++; break;
                 }
@@ -269,8 +318,15 @@ public static class CompiledExecutor
                 {
                     var value = s[--sp];
                     var instance = s[--sp].AsObject as ManagedObject;
-                    var fieldName = cm.StringTable[instr.Operand];
-                    if (fieldName.Contains(".")) fieldName = fieldName.Split('.')[1];
+                    // Fast path: use pre-split field name
+                    string fieldName;
+                    if (instr.Operand < cm.FieldNames.Length)
+                        fieldName = cm.FieldNames[instr.Operand];
+                    else
+                    {
+                        fieldName = cm.StringTable[instr.Operand];
+                        if (fieldName.Contains(".")) fieldName = fieldName.Split('.')[1];
+                    }
                     instance?.SetField(fieldName, value.ToObject());
                     ip++; break;
                 }

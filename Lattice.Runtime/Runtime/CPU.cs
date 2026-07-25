@@ -22,6 +22,7 @@ public class CPU : IProgramLoader
     public CallStack CurrentFrame;
 
     public bool Debug { get; set; }
+    public ExperimentalFeature Features { get; set; }
 
     private lattice.Runtime.Debugging.Debugger _debugger = new lattice.Runtime.Debugging.Debugger();
 
@@ -92,6 +93,7 @@ public class CPU : IProgramLoader
             program = this.program,
             Modules = new List<ModuleNode>(this.Modules),
             Debug = this.Debug,
+            Features = this.Features,
             MaxStackDepth = this.MaxStackDepth,
             Scheduler = this.Scheduler,
             Cache = this.Cache,
@@ -117,10 +119,11 @@ public class CPU : IProgramLoader
 
     // --- End IProgramLoader Implementation ---
 
-    public CPU()
+    public CPU(ExperimentalFeature features = ExperimentalFeature.None)
     {
         Debug = false;
         MaxStackDepth = 1000;
+        Features = features;
     }
 
     public void InitializeMain(string[] args)
@@ -288,7 +291,7 @@ public class CPU : IProgramLoader
             var compiled = Cache.GetCompiled(method);
             if (compiled != null)
             {
-                if (Experimental.IsEnabled(ExperimentalFeature.Jit))
+                if (Features.HasFlag(ExperimentalFeature.Jit))
                 {
                     var jitDel = Cache.GetJit(method);
                     if (jitDel != null)
@@ -313,9 +316,9 @@ public class CPU : IProgramLoader
                 for (int i = 0; i < argCount; i++)
                     rawArgs[i] = CompiledExecutor.RawToStackValue(poppedArgs[i]);
                 var compiledResult = CompiledExecutor.Execute(compiled, rawArgs, this);
-                if (compiled.ReturnsValue && CurrentFrame?.Previous != null)
+                if (compiled.ReturnsValue && CurrentFrame != null)
                 {
-                    CurrentFrame.Previous.EvaluationStack.Push(compiledResult.ToObject());
+                    CurrentFrame.EvaluationStack.Push(compiledResult.ToObject());
                 }
                 return;
             }
@@ -887,13 +890,10 @@ public class CPU : IProgramLoader
             if (string.Equals(target.Name, "constructor", StringComparison.Ordinal) || 
                 string.Equals(target.Name, ".ctor", StringComparison.Ordinal))
             {
-                // Find constructor with matching parameter count
                 var ctor = cls.Constructors.FirstOrDefault();
-                
                 if (ctor != null)
                 {
-                    // Synthesize a MethodNode so ExecuteMethod can handle it
-                    return new MethodNode("constructor", ctor.Parameters, TypeRef.Void, false, null, ctor.Body);
+                    return Cache.GetOrCreateCtorMethodNode(ctor);
                 }
             }
         }
@@ -955,18 +955,33 @@ public class CPU : IProgramLoader
 
     public void CompileAll()
     {
-        foreach (var cls in program.Classes)
+        var classes = program.Classes.ToArray();
+        foreach (var cls in classes)
         {
-            foreach (var method in cls.Methods)
+            var methods = cls.Methods.ToArray();
+            foreach (var method in methods)
             {
                 if (Cache.GetCompiled(method) == null && method.Body?.Statements.Count > 0)
                 {
                     Cache.CompileAndStore(method);
                 }
             }
-            foreach (var ctor in cls.Constructors)
+        }
+
+        // Eagerly resolve all targets in compiled methods (call targets, ctor targets, field names)
+        ResolveAllTargets();
+    }
+
+    private void ResolveAllTargets()
+    {
+        var classes = program.Classes.ToArray();
+        foreach (var cls in classes)
+        {
+            var methods = cls.Methods.ToArray();
+            foreach (var method in methods)
             {
-                // Constructors not compiled yet
+                var cm = Cache.GetCompiled(method);
+                if (cm != null) cm.ResolveTargets(this);
             }
         }
     }
@@ -995,6 +1010,34 @@ public class CPU : IProgramLoader
         });
     }
 
+    public void ForceJit()
+    {
+        var allMethods = new List<MethodNode>();
+        void CollectClass(ClassNode cls)
+        {
+            foreach (var m in cls.Methods)
+                if (m.NativeImpl == null)
+                    allMethods.Add(m);
+        }
+        void CollectModule(ModuleNode mod)
+        {
+            foreach (var cls in mod.Classes)
+                CollectClass(cls);
+        }
+
+        CollectModule(program);
+        foreach (var mod in Modules)
+            CollectModule(mod);
+
+        foreach (var method in allMethods)
+        {
+            var cm = Cache.GetCompiled(method) ?? Cache.CompileAndStore(method);
+            cm.ResolveTargets(this);
+            var jit = JitCompiler.GetOrCompile(cm);
+            Cache.SetJit(method, jit);
+        }
+    }
+
     public T CallMethod<T>(string methodPath, params object[] args)
     {
         var parts = methodPath.Split('.');
@@ -1013,7 +1056,7 @@ public class CPU : IProgramLoader
             throw new MethodResolutionException(methodPath, CurrentFrame?.GetStackTrace() ?? "");
 
         // Try JIT native path
-        if (Experimental.IsEnabled(ExperimentalFeature.Jit))
+        if (Features.HasFlag(ExperimentalFeature.Jit))
         {
             var cmJit = Cache.GetCompiled(method);
             var jitDel = cmJit != null ? Cache.GetJit(method) : null;

@@ -258,4 +258,141 @@ class Program {
         Assert.NotNull(cpu.CurrentFrame);
         Assert.Equal("Five", cpu.CurrentFrame.Method.Name);
     }
+
+    [Fact]
+    public void BenchmarkOIR_FloatLoop()
+    {
+        var module = TextIrParser.ParseModule(BenchmarkModuleSource);
+        var cpu = new CPU();
+        cpu.LoadModule(module);
+        float result = cpu.CallMethod<float>("Program.FloatLoop", 1000);
+        Assert.Equal(1500f, result, 0.01f);
+    }
+
+    [Fact]
+    public void BenchmarkOIR_StringLoop()
+    {
+        var module = TextIrParser.ParseModule(BenchmarkModuleSource);
+        var cpu = new CPU();
+        cpu.LoadModule(module);
+        int result = cpu.CallMethod<int>("Program.StringLoop", 1000);
+        Assert.Equal(1000, result);
+    }
+
+    [Fact]
+    public void BenchmarkOIR_FieldLoop()
+    {
+        var module = TextIrParser.ParseModule(BenchmarkModuleSource);
+        var cpu = new CPU();
+        cpu.LoadModule(module);
+        int result = cpu.CallMethod<int>("BenchObj.FieldLoop", 100);
+        Assert.Equal(100 * 42, result);
+    }
+
+    private const string BenchmarkModuleSource = """
+        module Bench
+
+        class Program {
+            static method FloatLoop(n: int32) -> float32 {
+                local sum: float32
+                local i: int32
+                ldc.r4 0.0
+                stloc sum
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    ldloc sum
+                    ldc.r4 1.5
+                    add
+                    stloc sum
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc sum
+                ret
+            }
+
+            static method StringLoop(n: int32) -> int32 {
+                local count: int32
+                local i: int32
+                ldc.i4 0
+                stloc count
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    ldstr "hello"
+                    ldstr "hello"
+                    ceq
+                    if (stack) {
+                        ldloc count
+                        ldc.i4 1
+                        add
+                        stloc count
+                    }
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc count
+                ret
+            }
+        }
+
+        class BenchObj {
+            public field X : int32
+
+            constructor() {
+                ret
+            }
+
+            static method FieldLoop(n: int32) -> int32 {
+                local sum: int32
+                local i: int32
+                local obj: BenchObj
+                ldc.i4 0
+                stloc sum
+                ldc.i4 0
+                stloc i
+                ldloc i
+                ldarg n
+                clt
+                while (stack) {
+                    newobj BenchObj.constructor()
+                    stloc obj
+                    ldloc obj
+                    ldc.i4 42
+                    stfld BenchObj.X
+                    ldloc obj
+                    ldfld BenchObj.X
+                    ldloc sum
+                    add
+                    stloc sum
+                    ldloc i
+                    ldc.i4 1
+                    add
+                    stloc i
+                    ldloc i
+                    ldarg n
+                    clt
+                }
+                ldloc sum
+                ret
+            }
+        }
+        """;
 }

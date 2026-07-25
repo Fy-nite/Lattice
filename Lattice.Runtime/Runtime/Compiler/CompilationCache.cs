@@ -13,6 +13,10 @@ public class CompilationCache
     private readonly ConcurrentDictionary<MethodNode, JittedMethod?> _jitDelegates = new();
     private readonly ConcurrentDictionary<MethodNode, int> _executionCounts = new();
 
+    // Cache synthesized constructor MethodNodes so the same instance is reused
+    // across all CPU instances and resolution calls.
+    private readonly ConcurrentDictionary<ConstructorNode, MethodNode> _ctorMethodNodes = new();
+
     public CompiledMethod? GetCompiled(MethodNode method)
     {
         _compiled.TryGetValue(method, out var cm);
@@ -55,5 +59,16 @@ public class CompilationCache
     public int IncrementExecutionCount(MethodNode method)
     {
         return _executionCounts.AddOrUpdate(method, 1, (_, c) => c + 1);
+    }
+
+    /// <summary>
+    /// Get or create a stable MethodNode for a ConstructorNode.
+    /// Returns the same MethodNode instance every time, so it can be used
+    /// as a cache key for compiled constructors.
+    /// </summary>
+    public MethodNode GetOrCreateCtorMethodNode(ConstructorNode ctor)
+    {
+        return _ctorMethodNodes.GetOrAdd(ctor, c =>
+            new MethodNode("constructor", c.Parameters, TypeRef.Void, false, null, c.Body));
     }
 }

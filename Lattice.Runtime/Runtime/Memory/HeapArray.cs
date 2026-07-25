@@ -56,12 +56,15 @@ public sealed class HeapArray
 
     public void SetElement(int index, FieldValue value)
     {
-        if (index < 0 || index >= Count)
+        if (index < 0 || index >= Capacity)
             throw new ArgumentOutOfRangeException(nameof(index));
 
         int off = ElementOffset(index);
         _arena.WriteByte(off, (byte)value.Kind);
         _arena.WriteInt32(off + 1, value.GetRawBits());
+
+        if (index >= Count)
+            Count = index + 1;
     }
 
     public static int AllocationSize(int capacity) => HeaderSize + (capacity * FieldValue.SizeOf);
